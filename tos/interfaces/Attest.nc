@@ -16,9 +16,14 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "TinyAttest.h"
+
 interface Attest {
   // Request attestation of a specific node
   command error_t Attest(nx_uint16_t nodeID);
+
+  // Cancel a request for a specific node
+  command error_t Cancel(nx_uint16_t nodeID);
  
   // Signal attestation complete. Result types are enumerated in attestation.h
   event attestation_t AttestationDone();
