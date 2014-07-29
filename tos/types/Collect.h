@@ -13,13 +13,14 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.x
  */
 
 #ifndef COLLECT_H_INCLUDED
 #define COLLECT_H_INCLUDED
 
-enum { DATA_COL = 52 };
+enum { DATA_COL = 52,
+       DATA_COL_UART = 53 };
 
 typedef nx_struct dataReading {
   nx_uint8_t who;

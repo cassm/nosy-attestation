@@ -22,17 +22,22 @@ configuration MeasurementBaseStationAppC {}
 
 implementation {
   components MainC, LedsC;
-  components PrintfC;
-  components SerialStartC;
   components MeasurementBaseStationC as App;
+  components SerialActiveMessageC as Serial;
+  components CollectionC, ActiveMessageC;
+  components new SerialAMSenderC(DATA_COL_UART) as UartSend;
+  //components new SerialAMReceiverC(DATA_COL_UART) as UartReceive;
   
   App.Boot -> MainC;
   App.Leds -> LedsC;
 
-  components CollectionC, ActiveMessageC;
-  
-  App.CommControl -> ActiveMessageC;
+  App.RadioControl -> ActiveMessageC;
+  App.SerialControl -> Serial;
   App.CollectionControl -> CollectionC;
   App.RootControl -> CollectionC;
+  
+  App.UartSend -> UartSend;
+  //BaseStationP.UartReceive -> UartReceive;
+  
   App.ReceiveReading -> CollectionC.Receive[DATA_COL];
 }
