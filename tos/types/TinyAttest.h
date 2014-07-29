@@ -25,20 +25,39 @@
 #define NESC_COMBINE(x)
 #endif
 
+// message types
+enum { AM_AT_CHALLENGE_MSG = 42, AM_AT_RESPONSE_MSG = 43 };
+
+// response codes
 enum {
-  SUCCESS        =  180,          
-  FAIL           =  181,           // Generic condition: backwards compatible
-  NORESPONSE    =  182,            // Node did not respond
-  TIMEDOUT      =  183             // Request timed out
+  ATTSUCCESS        =  180,          
+  ATTFAIL           =  181,            // Generic condition: backwards compatible
+  ATTNORESPONSE     =  182,            // Node did not respond
+  ATTTIMEDOUT       =  183             // Request timed out
 };
 
-typedef uint8_t attestation_t NESC_COMBINE("ecombine");
 
-error_t ecombine(error_t r1, error_t r2) @safe()
-/* Returns: r1 if r1 == r2, FAIL otherwise. This is the standard error
+// instruction codes
+enum {
+  ATTEST = 44,
+  CANCEL = 45
+};
+
+// challenge/response message structurey
+typedef nx_struct attestationChallenge {
+  nx_uint16_t who;
+  nx_uint16_t payload;
+  nx_uint16_t instruction;
+} attestationChallenge_t;
+
+
+  typedef uint8_t attestationResult_t NESC_COMBINE("attcombine");
+
+  attestationResult_t attcombine(attestationResult_t r1, attestationResult_t r2) @safe()
+  /* Returns: r1 if r1 == r2, FAIL otherwise. This is the standard error
      combination function: two successes, or two identical errors are
      preserved, while conflicting errors are represented by FAIL.
-*/
+  */
 {
   return r1 == r2 ? r1 : FAIL;
 }

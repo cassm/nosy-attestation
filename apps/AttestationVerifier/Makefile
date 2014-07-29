@@ -1,0 +1,3 @@
+COMPONENT=AttestationVerifierAppC
+include $(MAKERULES)
+

@@ -1,4 +1,4 @@
-/*  Interface for remote attestation in TinyOS
+/*  Configuration file for the AttestationProverC mock attestation module in TinyOS
  *
  *  Copyright (C) 2014 Cass May
  *
@@ -18,12 +18,25 @@
 
 #include "TinyAttest.h"
 
-interface Attest {
-  // Request attestation of a specific node
-  command error_t attest(nx_uint16_t nodeID, attestationChallenge_t* challenge);
+configuration AttestationProverAppC {}
 
-  // Cancel a request for a specific node
-  command error_t cancel(nx_uint16_t nodeID);
+implementation {
+  components MainC, DriverC as App, AttestationProverC, LedsC;
+  components new TimerMilliC() as Timer;
+  components new AMSenderC(AM_AT_RESPONSE_MSG);
+  components new AMReceiverC(AM_AT_CHALLENGE_MSG);
+  components ActiveMessageC;
+  components RandomC;
 
-  // Signal attestation complete. Result types are enumerated in attestation.h
-  event void attestationDone(attestationChallenge_t* response, attestationResult_t result);}
+  App.Boot -> MainC.Boot;
+
+  App.Receive -> AMReceiverC;
+  App.AMSend -> AMSenderC;
+  App.AMControl -> ActiveMessageC;
+  App.Leds -> LedsC;
+  App.Packet -> AMSenderC;
+  App.Attest -> AttestationProverC;
+
+  AttestationProverC.Timer -> Timer;
+  AttestationProverC.Random -> RandomC;
+}

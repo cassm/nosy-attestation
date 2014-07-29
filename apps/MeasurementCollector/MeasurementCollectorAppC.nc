@@ -1,4 +1,4 @@
-/*  Interface for remote attestation in TinyOS
+/*  Configuration for a basic collector network node
  *
  *  Copyright (C) 2014 Cass May
  *
@@ -16,14 +16,24 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "TinyAttest.h"
+#include "Collect.h"
 
-interface Attest {
-  // Request attestation of a specific node
-  command error_t attest(nx_uint16_t nodeID, attestationChallenge_t* challenge);
-
-  // Cancel a request for a specific node
-  command error_t cancel(nx_uint16_t nodeID);
-
-  // Signal attestation complete. Result types are enumerated in attestation.h
-  event void attestationDone(attestationChallenge_t* response, attestationResult_t result);}
+configuration MeasurementCollectorAppC {
+}
+implementation {
+  components MeasurementCollectorC as App, MainC, LedsC, ActiveMessageC;
+  components CollectionC as Collector;
+  components new CollectionSenderC(DATA_COL),
+    new SensirionSht11C() as TempAndHumid,
+    new TimerMilliC() as Timer,
+    new TimerMilliC() as BusyTimer;
+  
+  App.Boot -> MainC;
+  App.Leds -> LedsC;
+  App.CommControl -> ActiveMessageC;
+  App.CollectionControl -> Collector;
+  App.Timer -> Timer;
+  App.Temperature -> TempAndHumid.Temperature;
+  App.Humidity -> TempAndHumid.Humidity;
+  App.Send -> CollectionSenderC;
+}

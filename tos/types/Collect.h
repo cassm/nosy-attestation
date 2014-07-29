@@ -1,4 +1,4 @@
-/*  Interface for remote attestation in TinyOS
+/*  Data types for a basic collector network for humidity and temperature
  *
  *  Copyright (C) 2014 Cass May
  *
@@ -16,14 +16,15 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "TinyAttest.h"
+#ifndef COLLECT_H_INCLUDED
+#define COLLECT_H_INCLUDED
 
-interface Attest {
-  // Request attestation of a specific node
-  command error_t attest(nx_uint16_t nodeID, attestationChallenge_t* challenge);
+enum { DATA_COL = 52 };
 
-  // Cancel a request for a specific node
-  command error_t cancel(nx_uint16_t nodeID);
+typedef nx_struct dataReading {
+  nx_uint8_t who;
+  nx_uint16_t temperature,
+    humidity;
+} dataReading_t;
 
-  // Signal attestation complete. Result types are enumerated in attestation.h
-  event void attestationDone(attestationChallenge_t* response, attestationResult_t result);}
+#endif

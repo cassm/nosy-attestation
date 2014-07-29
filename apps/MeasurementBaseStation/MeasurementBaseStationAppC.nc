@@ -1,4 +1,4 @@
-/*  Interface for remote attestation in TinyOS
+/*  Configuration for a basic collector network base station
  *
  *  Copyright (C) 2014 Cass May
  *
@@ -16,14 +16,23 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "TinyAttest.h"
+#include "Collect.h"
 
-interface Attest {
-  // Request attestation of a specific node
-  command error_t attest(nx_uint16_t nodeID, attestationChallenge_t* challenge);
+configuration MeasurementBaseStationAppC {}
 
-  // Cancel a request for a specific node
-  command error_t cancel(nx_uint16_t nodeID);
+implementation {
+  components MainC, LedsC;
+  components PrintfC;
+  components SerialStartC;
+  components MeasurementBaseStationC as App;
+  
+  App.Boot -> MainC;
+  App.Leds -> LedsC;
 
-  // Signal attestation complete. Result types are enumerated in attestation.h
-  event void attestationDone(attestationChallenge_t* response, attestationResult_t result);}
+  components CollectionC, ActiveMessageC;
+  
+  App.CommControl -> ActiveMessageC;
+  App.CollectionControl -> CollectionC;
+  App.RootControl -> CollectionC;
+  App.ReceiveReading -> CollectionC.Receive[DATA_COL];
+}
