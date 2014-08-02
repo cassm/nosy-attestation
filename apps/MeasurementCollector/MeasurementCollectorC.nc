@@ -22,9 +22,11 @@ module MeasurementCollectorC {
   uses {
     interface Boot;
     interface Leds;
-    interface Send;
+    interface Send as Data;
+    interface DisseminationValue<dataSettings_t> as DataSettings;
     interface SplitControl as CommControl; 
     interface StdControl as CollectionControl;
+    interface StdControl as DisseminationControl;
     interface Timer<TMilli> as Timer;
     interface Read<uint16_t> as Temperature;
     interface Read<uint16_t> as Humidity;
@@ -32,10 +34,12 @@ module MeasurementCollectorC {
 }
 
 implementation {
+  uint8_t testVal;
   error_t error;
   message_t msgbuff;
   bool sending = FALSE;
-  dataReading_t *payload;
+  dataReading_t* payload;
+  dataSettings_t* settingsBuff;
 
   bool TEMP_READ = FALSE,
     HUM_READ = FALSE;
@@ -43,7 +47,7 @@ implementation {
   uint8_t INVALID_READING = 78;
 
   uint16_t samplePeriod = 3000,
-    retrytime = 500,
+    retrytime = 50,
     readings[2];
 
   event void Boot.booted() {
@@ -56,6 +60,7 @@ implementation {
     }
     else {
       call CollectionControl.start();
+      call DisseminationControl.start();
       call Leds.led1On();
       call Timer.startPeriodic(samplePeriod);
     }
@@ -65,7 +70,7 @@ implementation {
 
   task void send() {
     if (!sending) {
-      if ( call Send.send(&msgbuff, sizeof(dataReading_t)) != SUCCESS) {
+      if ( call Data.send(&msgbuff, sizeof(dataReading_t)) != SUCCESS) {
 	call Leds.led0On();
       }
       else {
@@ -75,29 +80,39 @@ implementation {
     }
   }
 
-  
+  event void DataSettings.changed() {
+    call Leds.set(0x7);
+    settingsBuff = call DataSettings.get();
+    testVal = settingsBuff->testVal;
+    samplePeriod = settingsBuff->sampleInterval;
+    call Timer.stop();
+    call Timer.startPeriodic(samplePeriod);
+  }
+
   task void write() {
     TEMP_READ = FALSE;
     HUM_READ = FALSE;
 
     call Leds.led2Off();
 
-   payload = (dataReading_t*) call Send.getPayload(&msgbuff, sizeof(dataReading_t));
+   payload = (dataReading_t*) call Data.getPayload(&msgbuff, sizeof(dataReading_t));
 
-    payload->who = TOS_NODE_ID;
-    payload->temperature = readings[0];
-    payload->humidity = readings[1];
+   payload->testVal = testVal;
+   payload->who = TOS_NODE_ID;
+   payload->temperature = readings[0];
+   payload->humidity = readings[1];
     
-    post send();
+   post send();
   }
 
-  event void Send.sendDone(message_t* msg, error_t error) {
+  event void Data.sendDone(message_t* msg, error_t error) {
     call Leds.set(0);
     sending = FALSE;
   }
 
   event void Timer.fired() {
     call Leds.set(0);
+    call Leds.led1On();
 
     if (call Temperature.read() != SUCCESS) {
       readings[0] = 0;

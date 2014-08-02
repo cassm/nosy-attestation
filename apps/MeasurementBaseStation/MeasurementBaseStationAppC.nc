@@ -24,20 +24,27 @@ implementation {
   components MainC, LedsC;
   components MeasurementBaseStationC as App;
   components SerialActiveMessageC as Serial;
-  components CollectionC, ActiveMessageC;
-  components new SerialAMSenderC(DATA_COL_UART) as UartSend;
-  //components new SerialAMReceiverC(DATA_COL_UART) as UartReceive;
+  components CollectionC, DisseminationC, ActiveMessageC;
+  components new SerialAMSenderC(AM_DATAREADING) as UartSend;
+  components new DisseminatorC(dataSettings_t, AM_DATASETTINGS);
+  //components new SerialAMReceiverC(DATA_SETTINGS) as DataSettingsReceive;
   
+  components new TimerMilliC() as SwitchTimer;
+
   App.Boot -> MainC;
   App.Leds -> LedsC;
 
   App.RadioControl -> ActiveMessageC;
   App.SerialControl -> Serial;
   App.CollectionControl -> CollectionC;
+  App.DisseminationControl -> DisseminationC;
   App.RootControl -> CollectionC;
   
   App.UartSend -> UartSend;
-  //BaseStationP.UartReceive -> UartReceive;
+  //App.DataSettingsReceive -> DataSettingsReceive;
   
-  App.ReceiveReading -> CollectionC.Receive[DATA_COL];
+  App.ReceiveReading -> CollectionC.Receive[AM_DATAREADING];
+  App.DataSettings -> DisseminatorC;
+
+  App.SwitchTimer -> SwitchTimer;
 }

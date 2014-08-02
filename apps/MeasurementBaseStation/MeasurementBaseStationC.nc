@@ -23,17 +23,21 @@ module MeasurementBaseStationC {
     interface SplitControl as RadioControl;
     interface SplitControl as SerialControl;    
     interface StdControl as CollectionControl;
+    interface StdControl as DisseminationControl;
     interface Leds;
     interface Boot;
     interface RootControl;
     interface Receive as ReceiveReading;
 
+    interface DisseminationUpdate<dataSettings_t> as DataSettings;
     interface AMSend as UartSend;
-    //interface Receive as UartReceive;
+    //interface Receive as DataSettingsReceive;
+    interface Timer<TMilli> as SwitchTimer;
   }
 }
 
 implementation {
+  dataSettings_t settBuff;
   dataReading_t radioDataBuff, 
     serialDataBuff;
   message_t radioMsgBuff,
@@ -57,8 +61,16 @@ implementation {
       call RadioControl.start();
     else {
       call CollectionControl.start();
+      call DisseminationControl.start();
       call RootControl.setRoot();
+      call SwitchTimer.startOneShot(30000);
     }
+  }
+
+  event void SwitchTimer.fired() {
+    settBuff.testVal = 55;
+    settBuff.sampleInterval = 10000;
+    call DataSettings.change(&settBuff);
   }
 
   event void SerialControl.startDone(error_t ok) {

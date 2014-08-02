@@ -22,8 +22,9 @@ configuration MeasurementCollectorAppC {
 }
 implementation {
   components MeasurementCollectorC as App, MainC, LedsC, ActiveMessageC;
-  components CollectionC as Collector;
-  components new CollectionSenderC(DATA_COL),
+  components CollectionC, DisseminationC;
+  components new CollectionSenderC(AM_DATAREADING),
+    new DisseminatorC(dataSettings_t, AM_DATASETTINGS),
     new SensirionSht11C() as TempAndHumid,
     new TimerMilliC() as Timer,
     new TimerMilliC() as BusyTimer;
@@ -31,9 +32,12 @@ implementation {
   App.Boot -> MainC;
   App.Leds -> LedsC;
   App.CommControl -> ActiveMessageC;
-  App.CollectionControl -> Collector;
+  App.CollectionControl -> CollectionC;
+  App.DisseminationControl -> DisseminationC;
+  App.DataSettings -> DisseminatorC;
+
   App.Timer -> Timer;
   App.Temperature -> TempAndHumid.Temperature;
   App.Humidity -> TempAndHumid.Humidity;
-  App.Send -> CollectionSenderC;
+  App.Data -> CollectionSenderC;
 }
