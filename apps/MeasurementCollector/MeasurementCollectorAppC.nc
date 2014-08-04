@@ -22,6 +22,7 @@ configuration MeasurementCollectorAppC {
 }
 implementation {
   components MeasurementCollectorC as App, MainC, LedsC, ActiveMessageC;
+  components DelugeC;
   components CollectionC, DisseminationC;
   components new CollectionSenderC(AM_DATAREADING),
     new DisseminatorC(dataSettings_t, AM_DATASETTINGS),

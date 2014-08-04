@@ -63,7 +63,7 @@ implementation {
       call CollectionControl.start();
       call DisseminationControl.start();
       call RootControl.setRoot();
-      call SwitchTimer.startOneShot(30000);
+      //call SwitchTimer.startOneShot(30000);
     }
   }
 

@@ -22,6 +22,7 @@ configuration MeasurementBaseStationAppC {}
 
 implementation {
   components MainC, LedsC;
+  components DelugeC;
   components MeasurementBaseStationC as App;
   components SerialActiveMessageC as Serial;
   components CollectionC, DisseminationC, ActiveMessageC;
