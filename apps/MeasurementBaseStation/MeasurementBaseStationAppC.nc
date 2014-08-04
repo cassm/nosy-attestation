@@ -28,7 +28,7 @@ implementation {
   components CollectionC, DisseminationC, ActiveMessageC;
   components new SerialAMSenderC(AM_DATAREADING) as UartSend;
   components new DisseminatorC(dataSettings_t, AM_DATASETTINGS);
-  //components new SerialAMReceiverC(DATA_SETTINGS) as DataSettingsReceive;
+  components new SerialAMReceiverC(AM_DATASETTINGS) as DataSettingsReceive;
   
   components new TimerMilliC() as SwitchTimer;
 
@@ -42,7 +42,7 @@ implementation {
   App.RootControl -> CollectionC;
   
   App.UartSend -> UartSend;
-  //App.DataSettingsReceive -> DataSettingsReceive;
+  App.DataSettingsReceive -> DataSettingsReceive;
   
   App.ReceiveReading -> CollectionC.Receive[AM_DATAREADING];
   App.DataSettings -> DisseminatorC;

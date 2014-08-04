@@ -31,13 +31,14 @@ module MeasurementBaseStationC {
 
     interface DisseminationUpdate<dataSettings_t> as DataSettings;
     interface AMSend as UartSend;
-    //interface Receive as DataSettingsReceive;
+    interface Receive as DataSettingsReceive;
     interface Timer<TMilli> as SwitchTimer;
   }
 }
 
 implementation {
   dataSettings_t settBuff;
+  dataSettings_t *settPayload;
   dataReading_t radioDataBuff, 
     serialDataBuff;
   message_t radioMsgBuff,
@@ -99,6 +100,14 @@ implementation {
     call Leds.led0Off();
   }
   
+  event message_t *DataSettingsReceive.receive(message_t *msg, void *payload, uint8_t len) {
+      settPayload = payload;
+      settBuff = *settPayload;
+      call DataSettings.change(&settBuff);
+      return msg;
+  }
+      
+
   event message_t *ReceiveReading.receive(message_t *msg, void *payload, uint8_t len) {
     call Leds.led1On();
     radioPayload = payload;

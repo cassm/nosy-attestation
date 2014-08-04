@@ -4,6 +4,7 @@ import time
 import struct
 
 import DataReading
+import DataSettings
 from tinyos.message import *
 from tinyos.message.Message import *
 from tinyos.message.SerialPacket import *
@@ -29,8 +30,23 @@ class DataLogger:
                 self.mif.sendMsg(self.tos_source, 0xFFFF,
                 smsg.get_amType(), 0, smsg)
 
+    def set_sample_rate(self, rate):
+        print "Setting sample rate..."        
+        smsg = DataSettings.DataSettings()
+        smsg.set_testVal(5)
+        smsg.set_sampleInterval(rate)
+        #smsg.set_rx_timestamp(time.time())
+        self.mif.sendMsg(self.tos_source, 0xFFFF,
+                         smsg.get_amType(), 0, smsg)
+
+    
+
     def main_loop(self):
         while 1:
+            samplerate = input("Enter new sample rate: ")
+            answer = raw_input("Set sample rate to {}? (Y/N): ".format(samplerate),)
+            if answer == 'Y' or answer == 'y':
+                self.set_sample_rate(samplerate)
             time.sleep(1)
             # send a message 1's per second
             #self.send_msg()
