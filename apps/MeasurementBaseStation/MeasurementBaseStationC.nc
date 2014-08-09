@@ -16,105 +16,150 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define ledvar 0;
+
 #include "Collect.h"
+#include "attestation.h"
 
 module MeasurementBaseStationC {
-  uses {
-    interface SplitControl as RadioControl;
-    interface SplitControl as SerialControl;    
-    interface StdControl as CollectionControl;
-    interface StdControl as DisseminationControl;
-    interface Leds;
-    interface Boot;
-    interface RootControl;
-    interface Receive as ReceiveReading;
+    uses {
+	interface SplitControl as RadioControl;
+	interface SplitControl as SerialControl;    
+	interface StdControl as CollectionControl;
+	interface StdControl as DisseminationControl;
+	interface Leds;
+	interface Boot;
+	interface RootControl;
+	interface Receive as ReceiveReading;
 
-    interface DisseminationUpdate<dataSettings_t> as DataSettings;
-    interface AMSend as UartSend;
-    interface Receive as DataSettingsReceive;
-    interface Timer<TMilli> as SwitchTimer;
-  }
+	interface Receive as RadioAttestationResponse;
+	interface AMSend as RadioAttestationRequest;
+	interface Receive as SerialAttestationRequest;
+	interface AMSend as SerialAttestationResponse;
+
+	interface DisseminationUpdate<dataSettings_t> as DataSettings;
+	interface AMSend as UartSend;
+	interface Receive as DataSettingsReceive;
+	interface Timer<TMilli> as SwitchTimer;
+    }
 }
 
 implementation {
-  dataSettings_t settBuff;
-  dataSettings_t *settPayload;
-  dataReading_t radioDataBuff, 
-    serialDataBuff;
-  message_t radioMsgBuff,
-    serialMsgBuff;
-  dataReading_t *radioPayload;
-  dataReading_t *serialPayload;
-  bool radioBusy = FALSE,
-    serialBusy = FALSE,
-    serialStarted = FALSE;
+    dataSettings_t settBuff;
+    dataSettings_t *settPayload;
+    dataReading_t radioDataBuff, 
+	serialDataBuff;
+    message_t radioMsgBuff,
+	serialMsgBuff,
+	radioAttestationMsgBuff,
+	serialAttestationMsgBuff;
+    dataReading_t *radioPayload;
+    dataReading_t *serialPayload;
+    bool radioBusy = FALSE,
+	serialBusy = FALSE,
+	serialStarted = FALSE,
+	serialAttestationBusy = FALSE,
+	radioAttestationBusy = FALSE;
+    
+    task void uartSendTask();
 
-  task void uartSendTask();
+    AttestationRequestMsg *attestationRequestPayload;
+    AttestationResponseMsg *attestationResponsePayload;
 
-  event void Boot.booted() {
-    call Leds.led2On();
-    call RadioControl.start();
-    call SerialControl.start();
-  }
-
-  event void RadioControl.startDone(error_t ok) {
-    if (ok != SUCCESS) 
-      call RadioControl.start();
-    else {
-      call CollectionControl.start();
-      call DisseminationControl.start();
-      call RootControl.setRoot();
-      //call SwitchTimer.startOneShot(30000);
+    event void Boot.booted() {
+	call Leds.led2On();
+	call RadioControl.start();
+	call SerialControl.start();
     }
-  }
 
-  event void SwitchTimer.fired() {
-    settBuff.testVal = 55;
-    settBuff.sampleInterval = 10000;
-    call DataSettings.change(&settBuff);
-  }
-
-  event void SerialControl.startDone(error_t ok) {
-    serialStarted = TRUE;
-  }
-
-  event void RadioControl.stopDone(error_t error) {}
-
-  event void SerialControl.stopDone(error_t error) {}
-
-  task void uartSendTask() {
-    call Leds.led1Off();
-    call Leds.led0On();
-    if (serialStarted && !serialBusy) {
-      serialPayload = call UartSend.getPayload(&serialMsgBuff, sizeof(dataReading_t));
-      if (serialPayload) {
-	*serialPayload = serialDataBuff;
-	if (call UartSend.send(AM_BROADCAST_ADDR, &serialMsgBuff, sizeof(dataReading_t)))
-	    serialBusy = FALSE;
-      }
+    event message_t *RadioAttestationResponse.receive(message_t *msg, void *payload, uint8_t len) {
+	call Leds.led1On();
+	if (!serialAttestationBusy) {
+	    attestationResponsePayload = call SerialAttestationResponse.getPayload(&serialAttestationMsgBuff, sizeof(AttestationResponseMsg));
+	    *attestationResponsePayload = *(AttestationResponseMsg *)payload;
+	    if (call SerialAttestationResponse.send(AM_BROADCAST_ADDR, &serialAttestationMsgBuff, sizeof(AttestationResponseMsg)) == SUCCESS) {
+		serialAttestationBusy = TRUE;
+	    }
+	}
+	return msg;
     }
+
+    event message_t *SerialAttestationRequest.receive(message_t *msg, void *payload, uint8_t len) {
+	if (!radioAttestationBusy) {
+	    call Leds.led0On();
+	    attestationRequestPayload = call RadioAttestationRequest.getPayload(&radioAttestationMsgBuff, sizeof(AttestationRequestMsg));
+
+	    *attestationRequestPayload = *(AttestationRequestMsg*)payload;
+
+	    if (call RadioAttestationRequest.send(attestationRequestPayload->who, &radioAttestationMsgBuff, sizeof(AttestationRequestMsg)) == SUCCESS)
+		radioAttestationBusy = TRUE;
+	}
+	return msg;
+    }
+
+    event void RadioAttestationRequest.sendDone(message_t *msg, error_t error) {
+	radioAttestationBusy = FALSE;
+    }
+
+    event void SerialAttestationResponse.sendDone(message_t *msg, error_t error) {
+	call Leds.set(0x4);
+	serialAttestationBusy = FALSE;
+    }
+
+    event void RadioControl.startDone(error_t ok) {
+	if (ok != SUCCESS) 
+	    call RadioControl.start();
+	else {
+	    call CollectionControl.start();
+	    call DisseminationControl.start();
+	    call RootControl.setRoot();
+	    //call SwitchTimer.startOneShot(30000);
+	}
+    }
+
+    event void SwitchTimer.fired() {
+	settBuff.testVal = 55;
+	settBuff.sampleInterval = 10000;
+	call DataSettings.change(&settBuff);
+    }
+
+    event void SerialControl.startDone(error_t ok) {
+	serialStarted = TRUE;
+    }
+
+    event void RadioControl.stopDone(error_t error) {}
+
+    event void SerialControl.stopDone(error_t error) {}
+
+    task void uartSendTask() {
+	//call Leds.led0On();
+	if (serialStarted && !serialBusy) {
+	    serialPayload = call UartSend.getPayload(&serialMsgBuff, sizeof(dataReading_t));
+	    if (serialPayload) {
+		*serialPayload = serialDataBuff;
+		if (call UartSend.send(AM_BROADCAST_ADDR, &serialMsgBuff, sizeof(dataReading_t)))
+		serialBusy = FALSE;
+	    }
+	}
   }
 
-  event void UartSend.sendDone(message_t *msg, error_t error) {
-    serialBusy = FALSE;
-    call Leds.led0Off();
-  }
+    event void UartSend.sendDone(message_t *msg, error_t error) {
+	serialBusy = FALSE;
+	//call Leds.led0Off();
+    }
   
-  event message_t *DataSettingsReceive.receive(message_t *msg, void *payload, uint8_t len) {
-      settPayload = payload;
-      settBuff = *settPayload;
-      call DataSettings.change(&settBuff);
-      return msg;
-  }
+    event message_t *DataSettingsReceive.receive(message_t *msg, void *payload, uint8_t len) {
+	settPayload = payload;
+	settBuff = *settPayload;
+	call DataSettings.change(&settBuff);
+	return msg;
+    }
       
 
-  event message_t *ReceiveReading.receive(message_t *msg, void *payload, uint8_t len) {
-    call Leds.led1On();
-    radioPayload = payload;
-    serialDataBuff.who = radioPayload->who;
-    serialDataBuff.temperature = radioPayload->temperature;
-    serialDataBuff.humidity = radioPayload->humidity;
-    post uartSendTask();
-    return msg;
-  }
+    event message_t *ReceiveReading.receive(message_t *msg, void *payload, uint8_t len) {
+	radioPayload = payload;
+	serialDataBuff = *radioPayload;
+	post uartSendTask();
+	return msg;
+    }
 }    

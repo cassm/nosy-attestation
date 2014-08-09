@@ -11,3 +11,5 @@ dataReading.java:
 	mig java -target=null -java-classname=dataReading Collect.h dataReading -o $@
 
 include $(MAKERULES)
+
+PFLAGS += -DSENSOR attestation.c

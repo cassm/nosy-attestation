@@ -21,19 +21,34 @@
 
 enum { AM_DATAREADING = 52,
        DATA_COL_UART = 53,
-       AM_DATASETTINGS = 54 
+       AM_DATASETTINGS = 54,
+       AM_ATTESTATIONRESPONSEMSG = 55,
+       AM_ATTESTATIONREQUESTMSG = 56
 };
 
 typedef nx_struct dataSettings {
-  nx_uint8_t testVal;
-  nx_uint16_t sampleInterval;
+    nx_uint8_t testVal;
+    nx_uint16_t sampleInterval;
 } dataSettings_t;
 
 typedef nx_struct dataReading {
-  nx_uint8_t testVal;
-  nx_uint8_t who;
-  nx_uint16_t temperature,
-    humidity;
+    nx_uint8_t testVal;
+    nx_uint8_t who;
+    nx_uint16_t temperature,
+	humidity,
+	fullSpectrum,
+	photoSpectrum;
 } dataReading_t;
+
+typedef nx_struct AttestationResponseMsg {
+    nx_uint8_t who;
+    nx_uint32_t nonce;
+    nx_uint32_t checksum;
+} AttestationResponseMsg;
+
+typedef nx_struct AttestationRequestMsg {
+    nx_uint8_t who;
+    nx_uint32_t nonce;
+} AttestationRequestMsg;
 
 #endif

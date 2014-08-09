@@ -17,35 +17,43 @@
  */
 
 #include "Collect.h"
+#include "attestation.h"
 
 configuration MeasurementBaseStationAppC {}
 
 implementation {
-  components MainC, LedsC;
-  components DelugeC;
-  components MeasurementBaseStationC as App;
-  components SerialActiveMessageC as Serial;
-  components CollectionC, DisseminationC, ActiveMessageC;
-  components new SerialAMSenderC(AM_DATAREADING) as UartSend;
-  components new DisseminatorC(dataSettings_t, AM_DATASETTINGS);
-  components new SerialAMReceiverC(AM_DATASETTINGS) as DataSettingsReceive;
-  
-  components new TimerMilliC() as SwitchTimer;
+    components MainC, LedsC, DelugeC, CollectionC, DisseminationC, ActiveMessageC,
+   	       MeasurementBaseStationC as App,
+	       SerialActiveMessageC as Serial;
 
-  App.Boot -> MainC;
-  App.Leds -> LedsC;
+    components new SerialAMSenderC(AM_DATAREADING) as UartSend,
+               new DisseminatorC(dataSettings_t, AM_DATASETTINGS),
+               new SerialAMReceiverC(AM_DATASETTINGS) as DataSettingsReceive,
+              
+               new SerialAMReceiverC(AM_ATTESTATIONREQUESTMSG) as SerialAttestationRequest,
+               new SerialAMSenderC(AM_ATTESTATIONRESPONSEMSG) as SerialAttestationResponse,
+               new AMReceiverC(AM_ATTESTATIONRESPONSEMSG) as RadioAttestationResponse,
+               new AMSenderC(AM_ATTESTATIONREQUESTMSG) as RadioAttestationRequest,
+         
+	       new TimerMilliC() as SwitchTimer;
 
-  App.RadioControl -> ActiveMessageC;
-  App.SerialControl -> Serial;
-  App.CollectionControl -> CollectionC;
-  App.DisseminationControl -> DisseminationC;
-  App.RootControl -> CollectionC;
-  
-  App.UartSend -> UartSend;
-  App.DataSettingsReceive -> DataSettingsReceive;
-  
-  App.ReceiveReading -> CollectionC.Receive[AM_DATAREADING];
-  App.DataSettings -> DisseminatorC;
+    App.Boot -> MainC;
+    App.Leds -> LedsC;
+    
+    App.SerialAttestationResponse -> SerialAttestationResponse;
+    App.SerialAttestationRequest -> SerialAttestationRequest;
+    App.RadioAttestationResponse -> RadioAttestationResponse;
+    App.RadioAttestationRequest -> RadioAttestationRequest;
 
-  App.SwitchTimer -> SwitchTimer;
+    App.RadioControl -> ActiveMessageC;
+    App.SerialControl -> Serial;
+    App.CollectionControl -> CollectionC;
+    App.DisseminationControl -> DisseminationC;
+    App.RootControl -> CollectionC;
+    App.UartSend -> UartSend;
+    App.DataSettingsReceive -> DataSettingsReceive;
+    App.ReceiveReading -> CollectionC.Receive[AM_DATAREADING];
+    App.DataSettings -> DisseminatorC;
+    App.SwitchTimer -> SwitchTimer;
+
 }
