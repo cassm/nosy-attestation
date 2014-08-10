@@ -7,8 +7,8 @@ from Tkinter import *
 
 import DataReading
 import DataSettings
-import AttestationResponse
-import AttestationRequest
+import AttestationResponseMsg
+import AttestationRequestMsg
 from tinyos.message import *
 from tinyos.message.Message import *
 from tinyos.message.SerialPacket import *
@@ -30,12 +30,19 @@ class Readings:
 
 currentReadings = Readings()
 
+
+
 class DataLogger():
+    benchmarking = False
+    goldenChecksum = 0
+    checksum = 0
+
 
     def __init__(self, motestring, volt):
         self.mif = MoteIF.MoteIF()
         self.tos_source = self.mif.addSource(motestring)
         self.mif.addListener(self, DataReading.DataReading)
+        self.mif.addListener(self, AttestationResponseMsg.AttestationResponseMsg)
         
     def receive(self, src, msg):
         if msg.get_amType() == DataReading.AM_TYPE:
@@ -43,11 +50,13 @@ class DataLogger():
             currentReadings.update(msg)
             
         elif msg.get_amType() == AttestationResponseMsg.AM_TYPE:
-            print "Attestation response"#:\n\tNode: {}\n\tNonce: {}\n\tChecksum: {}".format(msg.get_who(), msg.get_nonce(), msg.get_checksum())
-            
-        else:
-            print "wut?"
-
+            print "Attestation response:\n\tNode: {}\n\tNonce: {}\n\tChecksum: {}".format(msg.get_who(), msg.get_nonce(), msg.get_checksum())
+            if self.benchmarking == True:
+                self.goldenChecksum = msg.get_checksum()
+            elif msg.get_checksum() != self.goldenChecksum:
+                print "Attestation FAILED"
+            else:
+                print "Attestation SUCCEEDED"
         sys.stdout.flush()
 
     def send(self):
@@ -59,7 +68,7 @@ class DataLogger():
     def requestAttestation(self):
         who = input("Enter node ID: ")
         nonce = input("Enter nonce: ")
-        smsg = AttestationRequest.AttestationRequest()
+        smsg = AttestationRequestMsg.AttestationRequestMsg()
         smsg.set_who(who)
         smsg.set_nonce(nonce)
         self.mif.sendMsg(self.tos_source, 0xFFFF,
@@ -76,7 +85,14 @@ class DataLogger():
 
     def main_loop(self):
         while 1:
-            self.requestAttestation()
+            choice = raw_input("(B)enchmark or (A)ttest: ")
+            if choice == 'b' or choice == 'B':
+                self.benchmarking = True
+                self.requestAttestation()
+            elif choice == 'a' or choice == 'A':
+                self.benchmarking = False
+                self.requestAttestation()
+
             '''
             samplerate = input("Enter new sample rate: ")
             answer = raw_input("Set sample rate to {}? (Y/N): ".format(samplerate),)

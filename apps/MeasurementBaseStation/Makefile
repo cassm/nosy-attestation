@@ -6,10 +6,10 @@ BOOTLOADER=tosboot
 include $(MAKERULES)
 
 AttestationRequest.py: Collect.h
-	mig python -target=$(PLATFORM) $(CFLAGS) -python-classname=AttestationRequest Collect.h AttestationRequestMsg -o AttestationRequest.py
+	mig python -target=$(PLATFORM) $(CFLAGS) -python-classname=AttestationRequestMsg Collect.h AttestationRequestMsg -o AttestationRequestMsg.py
 
 AttestationResponse.py: Collect.h
-	mig python -target=$(PLATFORM) $(CFLAGS) -python-classname=AttestationResponse Collect.h AttestationResponseMsg -o AttestationResponse.py
+	mig python -target=$(PLATFORM) $(CFLAGS) -python-classname=AttestationResponseMsg Collect.h AttestationResponseMsg -o AttestationResponseMsg.py
 
 DataReading.py: Collect.h
 	mig python -target=$(PLATFORM) $(CFLAGS) -python-classname=DataReading Collect.h dataReading -o DataReading.py

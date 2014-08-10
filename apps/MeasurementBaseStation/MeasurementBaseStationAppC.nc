@@ -26,7 +26,7 @@ implementation {
    	       MeasurementBaseStationC as App,
 	       SerialActiveMessageC as Serial;
 
-    components new SerialAMSenderC(AM_DATAREADING) as UartSend,
+    components //new SerialAMSenderC(AM_DATAREADING) as UartSend,
                new DisseminatorC(dataSettings_t, AM_DATASETTINGS),
                new SerialAMReceiverC(AM_DATASETTINGS) as DataSettingsReceive,
               
@@ -50,7 +50,7 @@ implementation {
     App.CollectionControl -> CollectionC;
     App.DisseminationControl -> DisseminationC;
     App.RootControl -> CollectionC;
-    App.UartSend -> UartSend;
+    //App.UartSend -> UartSend;
     App.DataSettingsReceive -> DataSettingsReceive;
     App.ReceiveReading -> CollectionC.Receive[AM_DATAREADING];
     App.DataSettings -> DisseminatorC;

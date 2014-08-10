@@ -19,11 +19,18 @@
 #ifndef COLLECT_H_INCLUDED
 #define COLLECT_H_INCLUDED
 
+
+
 enum { AM_DATAREADING = 52,
        DATA_COL_UART = 53,
        AM_DATASETTINGS = 54,
        AM_ATTESTATIONRESPONSEMSG = 55,
-       AM_ATTESTATIONREQUESTMSG = 56
+       AM_ATTESTATIONREQUESTMSG = 56,
+       AM_ATTESTATIONNOTICE = 57
+};
+
+typedef nx_struct attestationNotice {
+    bool begin; // true for beginning of phase, false for end
 };
 
 typedef nx_struct dataSettings {

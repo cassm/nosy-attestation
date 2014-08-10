@@ -38,7 +38,7 @@ module MeasurementBaseStationC {
 	interface AMSend as SerialAttestationResponse;
 
 	interface DisseminationUpdate<dataSettings_t> as DataSettings;
-	interface AMSend as UartSend;
+//	interface AMSend as UartSend;
 	interface Receive as DataSettingsReceive;
 	interface Timer<TMilli> as SwitchTimer;
     }
@@ -133,7 +133,7 @@ implementation {
 
     task void uartSendTask() {
 	//call Leds.led0On();
-	if (serialStarted && !serialBusy) {
+/*	if (serialStarted && !serialBusy) {
 	    serialPayload = call UartSend.getPayload(&serialMsgBuff, sizeof(dataReading_t));
 	    if (serialPayload) {
 		*serialPayload = serialDataBuff;
@@ -141,13 +141,13 @@ implementation {
 		serialBusy = FALSE;
 	    }
 	}
-  }
+ }
 
     event void UartSend.sendDone(message_t *msg, error_t error) {
 	serialBusy = FALSE;
 	//call Leds.led0Off();
-    }
-  
+	*/    }
+
     event message_t *DataSettingsReceive.receive(message_t *msg, void *payload, uint8_t len) {
 	settPayload = payload;
 	settBuff = *settPayload;
