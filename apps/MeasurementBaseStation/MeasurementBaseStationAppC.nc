@@ -26,15 +26,15 @@ implementation {
    	       MeasurementBaseStationC as App,
 	       SerialActiveMessageC as Serial;
 
-    components //new SerialAMSenderC(AM_DATAREADING) as UartSend,
+    components new SerialAMSenderC(AM_DATAREADING) as UartSend,
                new DisseminatorC(dataSettings_t, AM_DATASETTINGS),
                new SerialAMReceiverC(AM_DATASETTINGS) as DataSettingsReceive,
-              
+	       
+	       new DisseminatorC(attestationNotice_t, AM_ATTESTATIONNOTICE) as RadioAttestationNotice,
+	       new DisseminatorC(AttestationRequestMsg, AM_ATTESTATIONREQUESTMSG) as RadioAttestationRequest,
+
                new SerialAMReceiverC(AM_ATTESTATIONREQUESTMSG) as SerialAttestationRequest,
-               new SerialAMSenderC(AM_ATTESTATIONRESPONSEMSG) as SerialAttestationResponse,
-               new AMReceiverC(AM_ATTESTATIONRESPONSEMSG) as RadioAttestationResponse,
-               new AMSenderC(AM_ATTESTATIONREQUESTMSG) as RadioAttestationRequest,
-         
+               new SerialAMSenderC(AM_ATTESTATIONRESPONSEMSG) as SerialAttestationResponse,         
 	       new TimerMilliC() as SwitchTimer;
 
     App.Boot -> MainC;
@@ -42,15 +42,18 @@ implementation {
     
     App.SerialAttestationResponse -> SerialAttestationResponse;
     App.SerialAttestationRequest -> SerialAttestationRequest;
-    App.RadioAttestationResponse -> RadioAttestationResponse;
+    App.RadioAttestationResponse -> CollectionC.Receive[AM_ATTESTATIONRESPONSEMSG];
     App.RadioAttestationRequest -> RadioAttestationRequest;
+    App.RadioAttestationNotice -> RadioAttestationNotice;
+
+
 
     App.RadioControl -> ActiveMessageC;
     App.SerialControl -> Serial;
     App.CollectionControl -> CollectionC;
     App.DisseminationControl -> DisseminationC;
     App.RootControl -> CollectionC;
-    //App.UartSend -> UartSend;
+    App.UartSend -> UartSend;
     App.DataSettingsReceive -> DataSettingsReceive;
     App.ReceiveReading -> CollectionC.Receive[AM_DATAREADING];
     App.DataSettings -> DisseminatorC;

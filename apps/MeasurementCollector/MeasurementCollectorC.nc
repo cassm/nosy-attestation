@@ -33,12 +33,14 @@ module MeasurementCollectorC {
 	interface Read<uint16_t> as Humidity;
 	interface Read<uint16_t> as FullSpectrum;
 	interface Read<uint16_t> as PhotoSpectrum;
-	interface AMSend as AttestationResponseSender;
-	interface Receive as AttestationRequestReceiver;
+	interface Send as AttestationResponseSender;
+	interface DisseminationValue<AttestationRequestMsg> as AttestationRequestReceiver;
+	interface DisseminationValue<attestationNotice_t> as AttestationNotice;
     }
 }
 
 implementation {
+    bool attestationTime = FALSE;
     bool attestationSending = FALSE;
     uint8_t testVal;
     error_t error;
@@ -48,8 +50,9 @@ implementation {
     dataReading_t* payload;
     dataSettings_t* settingsBuff;
 
+    AttestationRequestMsg* attestationRequestBuffer;
+    attestationNotice_t* attestationNoticeBuffer;
     AttestationResponseMsg* response;
-    AttestationRequestMsg* in;
 
     enum { TEMP_READ = 0x1,
 	   HUM_READ = 0x2,
@@ -64,6 +67,11 @@ implementation {
     uint16_t samplePeriod = 3000,
 	retrytime = 50,
 	readings[4];
+
+    task void sendReading();
+    task void writeReading();
+    
+    void sendAttestationResponse(uint32_t nonce, uint8_t who);
 
     uint32_t attestation(uint32_t nonce, uint32_t max) {
 	uint16_t i;
@@ -84,9 +92,6 @@ implementation {
 	return checksum;
     }
 
-    task void send();
-    task void write();
-
     event void Boot.booted() {
 	call CommControl.start();
     }
@@ -98,15 +103,89 @@ implementation {
 	else {
 	    call CollectionControl.start();
 	    call DisseminationControl.start();
-	    call Leds.led1On();
 	    call Timer.startPeriodic(samplePeriod);
 	}
     }
 
     event void CommControl.stopDone(error_t error) {}
 
+    event void DataSettings.changed() {
+	call Leds.set(0x7);
+	settingsBuff = call DataSettings.get();
+	testVal = settingsBuff->testVal;
+	samplePeriod = settingsBuff->sampleInterval;
+	call Timer.stop();
+	call Timer.startPeriodic(samplePeriod);
+    }
+
+
+    event void AttestationNotice.changed() {
+	attestationNoticeBuffer = call AttestationNotice.get();
+	attestationTime = attestationNoticeBuffer->begin;
+	if (attestationTime) {
+	    call Leds.led2On();
+	}
+	else {
+	   call Leds.led2Off();
+	}   
+    }
+
+    event void AttestationRequestReceiver.changed() {
+	attestationRequestBuffer = call AttestationRequestReceiver.get();
+	if (attestationRequestBuffer->who == TOS_NODE_ID) {
+	    sendAttestationResponse(attestationRequestBuffer->nonce, attestationRequestBuffer->who);
+	}
+    }
+
+    void sendAttestationResponse(uint32_t nonce, uint8_t who) {
+	uint32_t checksum;
+	call Leds.led0On();
+	atomic {
+	    checksum = attestation(nonce, PROG_MEM_END);
+	}
+	if(!attestationSending) {
+	    response = (AttestationResponseMsg*)(call AttestationResponseSender.getPayload(&attestationBuffer, sizeof(AttestationResponseMsg)));
+	    call Leds.led1On();
+	    response->nonce = nonce;
+	    response->who = who;
+	    response->checksum = (uint32_t) checksum;
+
+	    if(call AttestationResponseSender.send(&attestationBuffer, sizeof(AttestationResponseMsg)) == SUCCESS) {
+		attestationSending = TRUE;
+	    }
+	}
+    }
+
+    event void AttestationResponseSender.sendDone(message_t *msg, error_t error) {
+	if (msg == &attestationBuffer)
+	    call Leds.led0Off();
+	    call Leds.led1Off();
+	    attestationSending = FALSE;
+    }
+
+
+
+// *********  READING SENDING APPARATUS BEGINS HERE *********** 
+
+    task void sendReading() {
+	call Leds.led0On();
+	if (!attestationTime) {
+	    if (!sending) {
+		if ( call Data.send(&msgbuff, sizeof(dataReading_t)) == SUCCESS) {
+		    sending =TRUE;
+		}
+	    }
+	}
+	// TODO: implement reading buffering
+    }
+
+    event void Data.sendDone(message_t* msg, error_t error) {
+	call Leds.led0Off();
+	sending = FALSE;
+    }
+
+
     event void Timer.fired() {
-	call Leds.set(0);
 	call Leds.led1On();
 
 	if (call Temperature.read() != SUCCESS) {
@@ -130,7 +209,7 @@ implementation {
 	}
 
 	if (readingsDone == ALL_READ)
-	    post write();
+	    post writeReading();
     }
 
     event void Temperature.readDone(error_t error, uint16_t val) {
@@ -144,7 +223,7 @@ implementation {
 	readingsDone &= TEMP_READ;
 
 	if (readingsDone == ALL_READ)
-	    post write();
+	    post writeReading();
     }
 
     event void Humidity.readDone(error_t error, uint16_t val) {
@@ -158,7 +237,7 @@ implementation {
 	readingsDone &= HUM_READ;
 
 	if (readingsDone == ALL_READ)
-	    post write();
+	    post writeReading();
     }
 
     event void FullSpectrum.readDone(error_t error, uint16_t val) {
@@ -172,7 +251,7 @@ implementation {
 	readingsDone &= FULLSPECTRUM_READ;
 
 	if (readingsDone == ALL_READ)
-	    post write();
+	    post writeReading();
     }
 
     event void PhotoSpectrum.readDone(error_t error, uint16_t val) {
@@ -186,14 +265,14 @@ implementation {
 	readingsDone &= PHOTOSPECTRUM_READ;
 
 	if (readingsDone == ALL_READ)
-	    post write();
+	    post writeReading();
     }
     
-    task void write() {
+    task void writeReading() {
 
 	readingsDone = 0x0;
       
-	call Leds.led2Off();
+	call Leds.led1Off();
 
 	payload = (dataReading_t*) call Data.getPayload(&msgbuff, sizeof(dataReading_t));
 
@@ -203,65 +282,8 @@ implementation {
 	payload->humidity = readings[1];
 	payload->fullSpectrum = readings[2];
 	payload->photoSpectrum = readings[3];
-    
-	post send();
+	if (!attestationTime) 
+	    post sendReading();
     }
 
-    task void send() {
-	if (!sending) {
-	    if ( call Data.send(&msgbuff, sizeof(dataReading_t)) != SUCCESS) {
-		call Leds.led0On();
-	    }
-	    else {
-		sending =TRUE;
-		call Leds.led1On();
-	    }
-	}
-    }
-
-    event void Data.sendDone(message_t* msg, error_t error) {
-	call Leds.set(0);
-	sending = FALSE;
-    }
-
-    event void DataSettings.changed() {
-	call Leds.set(0x7);
-	settingsBuff = call DataSettings.get();
-	testVal = settingsBuff->testVal;
-	samplePeriod = settingsBuff->sampleInterval;
-	call Timer.stop();
-	call Timer.startPeriodic(samplePeriod);
-    }
-
-    void sendAttestationResponse(uint32_t nonce, uint8_t who) {
-	uint32_t checksum;
-	atomic {
-	    checksum = attestation(nonce, PROG_MEM_END);
-	}
-	if(!attestationSending) {
-	    call Leds.led1On();
-	    response = (AttestationResponseMsg*)(call AttestationResponseSender.getPayload(&attestationBuffer, sizeof(AttestationResponseMsg)));
-
-	    response->nonce = nonce;
-	    response->who = who;
-	    response->checksum = (uint32_t) checksum;
-
-	    if(call AttestationResponseSender.send(AM_BROADCAST_ADDR, &attestationBuffer, sizeof(AttestationResponseMsg)) == SUCCESS) {
-		attestationSending = TRUE;
-	    }
-	}
-    }
-
-    event void AttestationResponseSender.sendDone(message_t *msg, error_t error) {
-	if (msg == &attestationBuffer)
-	    call Leds.set(0x0);
-	    attestationSending = FALSE;
-    }
- 
-    event message_t* AttestationRequestReceiver.receive(message_t* msg, void* payload, uint8_t len) {
-	call Leds.led0On();
-	in = (AttestationRequestMsg*)payload;
-	sendAttestationResponse(in->nonce, in->who);
-	return msg;
-    }
 }

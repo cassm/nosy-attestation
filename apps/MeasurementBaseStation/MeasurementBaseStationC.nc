@@ -33,12 +33,15 @@ module MeasurementBaseStationC {
 	interface Receive as ReceiveReading;
 
 	interface Receive as RadioAttestationResponse;
-	interface AMSend as RadioAttestationRequest;
+
 	interface Receive as SerialAttestationRequest;
 	interface AMSend as SerialAttestationResponse;
 
+	interface DisseminationUpdate<AttestationRequestMsg> as RadioAttestationRequest;
+	interface DisseminationUpdate<attestationNotice_t> as RadioAttestationNotice;
 	interface DisseminationUpdate<dataSettings_t> as DataSettings;
-//	interface AMSend as UartSend;
+
+	interface AMSend as UartSend;
 	interface Receive as DataSettingsReceive;
 	interface Timer<TMilli> as SwitchTimer;
     }
@@ -46,6 +49,7 @@ module MeasurementBaseStationC {
 
 implementation {
     dataSettings_t settBuff;
+    attestationNotice_t attestationNoticeBuffer;
     dataSettings_t *settPayload;
     dataReading_t radioDataBuff, 
 	serialDataBuff;
@@ -73,7 +77,9 @@ implementation {
     }
 
     event message_t *RadioAttestationResponse.receive(message_t *msg, void *payload, uint8_t len) {
-	call Leds.led1On();
+	attestationNoticeBuffer.begin = FALSE;
+	call RadioAttestationNotice.change(&attestationNoticeBuffer);
+
 	if (!serialAttestationBusy) {
 	    attestationResponsePayload = call SerialAttestationResponse.getPayload(&serialAttestationMsgBuff, sizeof(AttestationResponseMsg));
 	    *attestationResponsePayload = *(AttestationResponseMsg *)payload;
@@ -85,20 +91,11 @@ implementation {
     }
 
     event message_t *SerialAttestationRequest.receive(message_t *msg, void *payload, uint8_t len) {
-	if (!radioAttestationBusy) {
-	    call Leds.led0On();
-	    attestationRequestPayload = call RadioAttestationRequest.getPayload(&radioAttestationMsgBuff, sizeof(AttestationRequestMsg));
-
-	    *attestationRequestPayload = *(AttestationRequestMsg*)payload;
-
-	    if (call RadioAttestationRequest.send(attestationRequestPayload->who, &radioAttestationMsgBuff, sizeof(AttestationRequestMsg)) == SUCCESS)
-		radioAttestationBusy = TRUE;
-	}
+	call Leds.led0On();
+	attestationNoticeBuffer.begin = TRUE;
+	call RadioAttestationNotice.change(&attestationNoticeBuffer);
+	call RadioAttestationRequest.change((AttestationRequestMsg*)payload);
 	return msg;
-    }
-
-    event void RadioAttestationRequest.sendDone(message_t *msg, error_t error) {
-	radioAttestationBusy = FALSE;
     }
 
     event void SerialAttestationResponse.sendDone(message_t *msg, error_t error) {
@@ -141,12 +138,12 @@ implementation {
 		serialBusy = FALSE;
 	    }
 	}
- }
+*/ }
 
     event void UartSend.sendDone(message_t *msg, error_t error) {
 	serialBusy = FALSE;
 	//call Leds.led0Off();
-	*/    }
+    }
 
     event message_t *DataSettingsReceive.receive(message_t *msg, void *payload, uint8_t len) {
 	settPayload = payload;

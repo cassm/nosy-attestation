@@ -28,16 +28,17 @@ implementation {
     components new CollectionSenderC(AM_DATAREADING),
 	new DisseminatorC(dataSettings_t, AM_DATASETTINGS),
 
+	new DisseminatorC(attestationNotice_t, AM_ATTESTATIONNOTICE) as AttestationNotice,
+    	new CollectionSenderC(AM_ATTESTATIONRESPONSEMSG) as AttestationResponseSender,
+	new DisseminatorC(AttestationRequestMsg, AM_ATTESTATIONREQUESTMSG) as AttestationRequestReceiver,
+
+
 	new SensirionSht11C() as TempAndHumid,
 	new HamamatsuS10871TsrC() as FullSpectrum,
 	new HamamatsuS1087ParC() as PhotoSpectrum,
 
 	new TimerMilliC() as Timer,
-	new TimerMilliC() as BusyTimer,
-
-	new AMSenderC(AM_ATTESTATIONRESPONSEMSG) as AttestationResponseSender,
-	new AMReceiverC(AM_ATTESTATIONREQUESTMSG) as AttestationRequestReceiver;
-
+	new TimerMilliC() as BusyTimer;
   
     App.Boot -> MainC;
     App.Leds -> LedsC;
@@ -48,6 +49,7 @@ implementation {
 
     App.AttestationRequestReceiver -> AttestationRequestReceiver;
     App.AttestationResponseSender -> AttestationResponseSender;
+    App.AttestationNotice -> AttestationNotice;
 
     App.Timer -> Timer;
     App.Temperature -> TempAndHumid.Temperature;

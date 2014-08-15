@@ -30,8 +30,8 @@ enum { AM_DATAREADING = 52,
 };
 
 typedef nx_struct attestationNotice {
-    bool begin; // true for beginning of phase, false for end
-};
+    nx_bool begin; // true for beginning of phase, false for end
+} attestationNotice_t;
 
 typedef nx_struct dataSettings {
     nx_uint8_t testVal;
