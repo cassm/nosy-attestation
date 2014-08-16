@@ -13,11 +13,15 @@ implementation {
     components new CAMSenderC(AMId);
     components new CAMReceiverC(AMId);
     components new AMSnooperC(CAMMSG);
+    components new CAMBufferC();
+
     components new TimerMilliC() as Timer;
     
     
     AMSend = CAMSenderC;
     Receive = CAMReceiverC;
+    
+    App.CAMBuffer -> CAMBufferC.CAMBuffer;
     App.Snoop -> AMSnooperC;
     App.Leds -> LedsC;
     App.Timer -> Timer;

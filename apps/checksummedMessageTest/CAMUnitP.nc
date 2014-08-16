@@ -5,6 +5,7 @@ generic module CAMUnitP(am_id_t AMId) {
 	interface Receive as Snoop;
 	interface Leds;
 	interface Timer<TMilli> as Timer;
+	interface CAMBuffer;
     }
 }
 
