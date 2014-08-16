@@ -7,8 +7,7 @@ module CAMTestC {
 	interface Leds;
 	interface Timer<TMilli> as SendTimer;
 	interface Timer<TMilli> as LightTimer;
-	interface Receive as GreenReceiver;
-	interface Receive as RedReceiver;
+	interface Receive as Receiver;
 	interface SplitControl as AMControl;
     }
 }
@@ -45,31 +44,16 @@ implementation {
 
     event void AMSend.sendDone(message_t *msg, error_t error) {}
 
-    event message_t *RedReceiver.receive(message_t *msg, void *payload, uint8_t len) {
-	testmsg_t *tester;
-	tester = (testmsg_t*) payload;
+    event message_t *Receiver.receive(message_t *msg, void *payload, uint8_t len) {
+	checksummed_msg_t *msg_payload;
+	msg_payload = (checksummed_msg_t*) msg->data;
 
-	if (tester->val1 == 6 && tester->val2 == 18)
-	    call Leds.led0On();
-	else 
-	    call Leds.led2On();
-
-	call LightTimer.startOneShot(1000);
-
-	return msg;
-    }
-
-    event message_t *GreenReceiver.receive(message_t *msg, void *payload, uint8_t len) {
-	testmsg_t *tester;
-	tester = (testmsg_t*) payload;
-
-	if (tester->val1 == 6 && tester->val2 == 18)
+	if (msg_payload->checksum)
 	    call Leds.led1On();
 	else 
-	    call Leds.led2On();
+	    call Leds.led0On();
 
 	call LightTimer.startOneShot(1000);
-
 
 	return msg;
     }

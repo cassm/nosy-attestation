@@ -3,7 +3,6 @@
 
 #include "message.h"
 
-
 enum { CAMMSG = 97,
        TESTMSG = 98,
        MAX_PAYLOAD = (TOSH_DATA_LENGTH - 6) 
@@ -22,7 +21,6 @@ typedef nx_struct testmsg_t {
     nx_uint32_t val2;
 } testmsg_t;
 
-
 // N.B. - This function only performs correctly on 
 uint32_t checksum_msg(message_t *msg) {
     uint32_t checksum = 0;
@@ -38,11 +36,17 @@ uint32_t checksum_msg(message_t *msg) {
     // checksum footer
     for ( i = 0 ; i < sizeof(message_footer_t) ; i++ )
 	checksum += (uint8_t) *(msg->footer+i);
-
+/*
     // checksum metadata
     for ( i = 0 ; i < sizeof(message_metadata_t) ; i++ )
 	checksum += (uint8_t) *(msg->metadata+i);
 
+    // discard timestamp from check
+    cc2420_metadata_t *metadata;
+    metadata = (cc2420_metadata_t*) &(msg->metadata);
+    checksum -= metadata->timestamp;
+
+*/
     // checksum data
     payload = (checksummed_msg_t*) msg->data;
 
