@@ -38,7 +38,7 @@ implementation {
 	else {
 	    payloadptr->val1 = 6;
 	    payloadptr->val2 = 18;
-	    call AMSend.send(AM_BROADCAST_ADDR, &messbuff, sizeof(testmsg_t));
+	    call AMSend.send(1, &messbuff, sizeof(testmsg_t));
 	}
     }
 
