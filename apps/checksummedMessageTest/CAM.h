@@ -22,17 +22,19 @@ typedef nx_struct cam_ack_msg_t {
 } cam_ack_msg_t;
 
 typedef struct cam_buffer_t {
+    bool locked;
+    bool inUse;
     uint32_t alarmtime;
     message_t message;
-}
+} cam_buffer_t;
 
 // note - this type reduces the maximum data payload by 4 bytes, due to checksum size.
 typedef nx_struct checksummed_msg_t {
     nx_uint32_t checksum;
-    nx_uint8_t ID;
-    nx_uint8_t dest;
     nx_uint8_t type;
     nx_uint8_t len;
+    nx_uint8_t src;
+    nx_uint8_t msgId;
     nx_uint8_t data[MAX_PAYLOAD];
 } checksummed_msg_t;
 

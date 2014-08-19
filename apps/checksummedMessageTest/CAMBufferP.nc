@@ -3,6 +3,7 @@
 generic module CAMBufferP() {
     provides interface CAMBuffer;
 }
+
 implementation {
     cam_buffer_t buffer[CAM_BUFFER_SIZE];
     uint8_t j;
