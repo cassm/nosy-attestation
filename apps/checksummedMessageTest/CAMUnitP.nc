@@ -33,6 +33,7 @@ implementation {
 	payload = msgBuffer->data;
 	payload->type = AMId;
 	payload->len = len;
+	payload->src = TOS_NODE_ID;
 	payload->dest = addr;
 	payload->ID = msgID;
 	
@@ -43,7 +44,8 @@ implementation {
 	return SUCCESS;
     }
 
-    event void
+    event void RouteFinder.nextHopFound( uint8_t next_id, uint8_t msg_ID, error_t ok ) {
+	
 
     event message_t *Snoop.receive(message_t *msg, void *payload, uint8_t len) {
 	call Leds.set(0x7);

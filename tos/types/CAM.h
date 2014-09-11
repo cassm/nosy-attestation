@@ -5,7 +5,7 @@
 
 enum { CAMMSG = 97,
        TESTMSG = 98,
-       MAX_PAYLOAD = (TOSH_DATA_LENGTH - 8),
+       MAX_PAYLOAD = (TOSH_DATA_LENGTH - 9),
        CAM_TIMEOUT = 50,
        CAM_RETRIES = 3,
 
@@ -21,16 +21,19 @@ typedef nx_struct cam_ack_msg_t {
     nx_uint8_t status;
 } cam_ack_msg_t;
 
-typedef struct cam_buffer_t {
-    uint32_t alarmtime;
+typedef nx_struct cam_buffer_t {
+    nx_uint32_t alarmtime;
+    nx_bool inUse;
+    nx_bool locked;
     message_t message;
-}
+} cam_buffer_t;
 
 // note - this type reduces the maximum data payload by 4 bytes, due to checksum size.
 typedef nx_struct checksummed_msg_t {
     nx_uint32_t checksum;
     nx_uint8_t ID;
     nx_uint8_t dest;
+    nx_uint8_t src;
     nx_uint8_t type;
     nx_uint8_t len;
     nx_uint8_t data[MAX_PAYLOAD];

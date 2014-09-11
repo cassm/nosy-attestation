@@ -4,6 +4,7 @@ generic module AODVStubP() {
 
 implementation {
     uint8_t currentReq;
+    
     task void findRoute() {
 	if ( currentReq < TOS_NODE_ID ) {
 	    signal nextHopFound( currentReq, currentReq - 1, , uint8_t msg_ID, SUCCESS );
