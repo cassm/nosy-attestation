@@ -24,7 +24,7 @@ implementation {
     App.SubSend -> SubSend;
     App.SubReceive -> SubReceive;
     
-    App.CAMBuffer -> CAMBufferC.CAMBuffer;
+    App.CAMBuffer -> CAMBufferC;
     App.Snoop -> AMSnooperC;
     App.Leds -> LedsC;
     App.Timer -> Timer;

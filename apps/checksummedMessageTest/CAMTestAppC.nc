@@ -4,7 +4,13 @@ configuration CAMTestAppC {
 } 
 
 implementation {
-    components MainC, CAMTestC as App, new CAMUnitC(TESTMSG), LedsC, new TimerMilliC() as SendTimer, new TimerMilliC() as LightTimer, ActiveMessageC;
+    components MainC, 
+	CAMTestC as App, 
+	new CAMUnitC(TESTMSG), 
+	LedsC, 
+	new TimerMilliC() as SendTimer, 
+	new TimerMilliC() as LightTimer, 
+	ActiveMessageC;
 
     
     App.Boot -> MainC;

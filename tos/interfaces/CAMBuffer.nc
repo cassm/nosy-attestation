@@ -18,4 +18,7 @@ interface CAMBuffer {
     // marks a buffer as no longer in use. Returns FAIL if details match no buffer, EBUSY if the buffer is locked
     //command error_t releaseBuffer(uint8_t source, uint8_t msgId);
     command error_t releaseBuffer(cam_buffer_t *buff);
+
+    // retrieves the buffer slot corresponding to a message's memory address, or null
+    command cam_buffer_t *getMsgBuffer(message_t *msg);
 } 
