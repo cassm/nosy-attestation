@@ -35,6 +35,27 @@ implementation {
 	    failed++;
 	}
 
+	buffPtr[CAM_BUFFER_SIZE] = call CAMBuffer.getEarliest();
+	if (buffPtr[CAM_BUFFER_SIZE]) {
+	    printf("GetEarliest does not respect buffer lock.\n");
+	    printfflush();
+	    failed++;
+	}
+	buffPtr[CAM_BUFFER_SIZE] = call CAMBuffer.retrieveMsg(TOS_NODE_ID, 10);
+	if (buffPtr[CAM_BUFFER_SIZE]) {
+	    printf("RetrieveMsg does not respect buffer lock.\n");
+	    printfflush();
+	    failed++;
+	}
+    	buffPtr[CAM_BUFFER_SIZE] = call CAMBuffer.getMsgBuffer(&(buffPtr[5]->message));
+	if (buffPtr[CAM_BUFFER_SIZE]) {
+	    printf("GetMsgBuffer does not respect buffer lock.\n");
+	    printfflush();
+	    failed++;
+	}
+
+	
+
 	for ( i = 4 ; i < 6 ; i++ ) {
 	    if (call CAMBuffer.checkInBuffer(buffPtr[i]) != SUCCESS) {
 		printf("Buffer checkin failed at %d.\n", i);
@@ -57,7 +78,7 @@ implementation {
 	
 	buffPtr[CAM_BUFFER_SIZE] = call CAMBuffer.checkOutBuffer();
 	if (buffPtr[CAM_BUFFER_SIZE]) {
-	    printf("Buffer get limiting failed after checkin.\n");
+	    printf("CheckoutBuffer does not respect buffer inuse.\n");
 	    printfflush();
 	    failed++;
 	}
@@ -74,6 +95,15 @@ implementation {
 	    printfflush();
 	    failed++;
 	}
+
+
+    	buffPtr[CAM_BUFFER_SIZE] = call CAMBuffer.getMsgBuffer(&(buffPtr[5]->message));
+	if (!buffPtr[CAM_BUFFER_SIZE]) {
+	    printf("GetMsgBuffer failed to retrieve message.\n");
+	    printfflush();
+	    failed++;
+	}
+
 
 	if (call CAMBuffer.releaseBuffer(buffPtr[4]) != SUCCESS) {
 	    printf("Buffer release did not return success.\n");

@@ -9,6 +9,7 @@ module CAMTestC {
 	interface Receive as Receiver;
 	interface SplitControl as AMControl;
 	interface RouteFinder;
+	interface CAMBuffer;
     }
 }
 implementation {
@@ -30,7 +31,12 @@ implementation {
     event void AMControl.stopDone(error_t err) {}
 	
     event void Timer.fired() {
-	call RouteFinder.getNextHop( i , 35, TOS_NODE_ID );
+	
+	
+	
+
+	
+	
 /*
 	testmsg_t *payloadptr;
 	payloadptr = (testmsg_t*) call AMSend.getPayload(&messbuff, sizeof(testmsg_t));
