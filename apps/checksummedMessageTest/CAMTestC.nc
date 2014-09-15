@@ -1,19 +1,20 @@
 #include "CAM.h"
+#include "printf.h"
 
 module CAMTestC {
     uses {
 	interface Boot;
 	interface AMSend;
-	interface Leds;
-	interface Timer<TMilli> as SendTimer;
-	interface Timer<TMilli> as LightTimer;
+	interface Timer<TMilli> as Timer;
 	interface Receive as Receiver;
 	interface SplitControl as AMControl;
+	interface RouteFinder;
     }
 }
 implementation {
     message_t messbuff;
     message_t messptr;
+    uint8_t i;
 
     event void Boot.booted() {
 	call AMControl.start();
@@ -23,13 +24,14 @@ implementation {
 	if (error != SUCCESS)
 	    call AMControl.start();
 	else
-	    if (TOS_NODE_ID == 0)
-		call SendTimer.startPeriodic(3000);
+	    signal Timer.fired();
     }
 
     event void AMControl.stopDone(error_t err) {}
 	
-    event void SendTimer.fired() {
+    event void Timer.fired() {
+	call RouteFinder.getNextHop( i , 35, TOS_NODE_ID );
+/*
 	testmsg_t *payloadptr;
 	payloadptr = (testmsg_t*) call AMSend.getPayload(&messbuff, sizeof(testmsg_t));
 
@@ -40,6 +42,14 @@ implementation {
 	    payloadptr->val2 = 18;
 	    call AMSend.send(1, &messbuff, sizeof(testmsg_t));
 	}
+*/  }
+
+    event void RouteFinder.nextHopFound( uint8_t nextHop, uint8_t msgId, uint8_t src, error_t ok ) {
+	printf("%d -> %d :: %d\n", src, i++, nextHop);
+	printfflush();
+	if (i >= 10)
+	    i = 0;
+	call Timer.startOneShot(1000);
     }
 
     event void AMSend.sendDone(message_t *msg, error_t error) {}
@@ -49,15 +59,10 @@ implementation {
 	msg_payload = (checksummed_msg_t*) msg->data;
 
 	if (msg_payload->checksum)
-	    call Leds.led1On();
+	    printf("Message received: Valid checksum.\n");
 	else 
-	    call Leds.led0On();
-
-	call LightTimer.startOneShot(1000);
-
+	    printf("Message received: Invalid checksum.\n");
+	printfflush();
 	return msg;
-    }
-    event void LightTimer.fired() {
-	call Leds.set(0x0);
     }
 }

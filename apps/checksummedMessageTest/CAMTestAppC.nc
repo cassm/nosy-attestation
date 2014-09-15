@@ -1,4 +1,5 @@
 #include "CAM.h"
+#include "printf.h"
 
 configuration CAMTestAppC {
 } 
@@ -7,17 +8,15 @@ implementation {
     components MainC, 
 	CAMTestC as App, 
 	new CAMUnitC(TESTMSG), 
-	LedsC, 
-	new TimerMilliC() as SendTimer, 
-	new TimerMilliC() as LightTimer, 
-	ActiveMessageC;
+	new TimerMilliC() as Timer, 
+	ActiveMessageC,
+	new AODVStubC();
 
     
     App.Boot -> MainC;
     App.AMSend -> CAMUnitC;
-    App.Leds -> LedsC;
-    App.SendTimer -> SendTimer;
-    App.LightTimer -> LightTimer;
+    App.Timer -> Timer;
+    App.RouteFinder -> AODVStubC;
     App.Receiver -> CAMUnitC;
     App.AMControl -> ActiveMessageC;
 }
