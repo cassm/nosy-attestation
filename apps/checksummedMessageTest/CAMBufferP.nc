@@ -142,11 +142,11 @@ implementation {
 	}
     }
 
-    command cam_buffer_t *getMsgBuffer(message_t *msg) {
+    command cam_buffer_t *CAMBuffer.getMsgBuffer(message_t *msg) {
 	uint8_t i;
 	for (i = 0 ; i < CAM_BUFFER_SIZE ; i++) {
-	    if (&(buffer[i]->message && !(buffer[i]->locked) == msg)
-		return buffer[i];
+	    if (!(buffer[i].locked) && &(buffer[i].message) == msg)
+		return &buffer[i];
 	}
 	return NULL;
     }

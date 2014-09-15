@@ -100,6 +100,19 @@ implementation {
 	return FAIL;
     }
 
+    command cam_buffer_t *getMsgBuffer(message_t *msg) {
+	unti8_t i;
+	checksummed_msg_t* msgPtr;
+
+	for (i = 0 ; i < CAM_BUFFER_SIZE ; i++) {
+	    if (!buffer[i].locked) {
+		if ( &(buffer[i].message) == msg )
+		    return &(buffer[i]);
+	    }
+	}
+
+	return NULL;
+    }
 
 /*    command error_t releaseBuffer(uint8_t source, uint8_t msgId) {
 	uint8_t i;

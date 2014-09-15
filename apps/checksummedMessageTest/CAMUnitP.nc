@@ -1,9 +1,11 @@
 #include "CAM.h"
+#include "printf.h"
 
 generic module CAMUnitP(am_id_t AMId) {
     provides {
 	interface AMSend;
 	interface Receive;
+    }
     uses {
 	interface AMSend as SubSend;
 	interface Receive as SubReceive;
@@ -17,31 +19,35 @@ generic module CAMUnitP(am_id_t AMId) {
 }
 
 implementation {
-    uint8_t msgID = (uint8_t) Random.rand16();
+    uint8_t msgID = 0; // TODO: this needs to be randomised
 
     command error_t AMSend.send(am_addr_t addr, message_t *msg, uint8_t len) {
-	call Leds.set(0x7);
-
 	cam_buffer_t *msgBuffer;
 	checksummed_msg_t *payload;
 
-	msgBuffer = sendBuffer.checkOutBuffer();
+	printf("Send to %d requested.\n", addr);
+	printfflush();
+
+	msgBuffer = call SendBuffer.checkOutBuffer();
 	
-	if ( !msgBuffer )
+	if ( !msgBuffer ) {
+	    printf("Buffer get failed.");
+	    printfflush();
 	    return FAIL;
+	}
 
 	msgBuffer->message = *msg;
 	
-	payload = msgBuffer->message.data;
+	payload = (checksummed_msg_t*) msgBuffer->message.data;
 	payload->type = AMId;
 	payload->len = len;
 	payload->src = TOS_NODE_ID;
 	payload->dest = addr;
 	payload->ID = msgID;
 	
-	sendBuffer.checkInBuffer(msgBuffer);
+	call SendBuffer.checkInBuffer(msgBuffer);
 
-	RouteFinder.getNextHop(addr, msgID++, TOS_NODE_ID);
+	call RouteFinder.getNextHop(addr, msgID++, TOS_NODE_ID);
     
 	return SUCCESS;
     }
@@ -50,37 +56,48 @@ implementation {
 	cam_buffer_t *buffer;
 	checksummed_msg_t *payload;
 
-	buffer = sendBuffer.retrieveMsg(src, msg_ID);
+	buffer = call SendBuffer.retrieveMsg(src, msg_ID);
 	if (!buffer) {
-	    call Leds.set(0x1);
+	    printf("Message retrieval failed.\n");
+	    printfflush();
 	}
 	else {
+	    payload = (checksummed_msg_t*) buffer->message.data;
+	    printf("Next hop towards %d found: %d.\n", payload->dest, next_id);
+	    printfflush();
+
 	    call SubSend.send(next_id, &(buffer->message), sizeof(checksummed_msg_t));
 	}
     }
 
-    event message_t *SubReceive.Receive(message_t *msg, void *payload, uint8_t len) {
-	call Leds.set(0x6);
+    event message_t *SubReceive.receive(message_t *msg, void *payload, uint8_t len) {
+
 	// if this is a forward, overwrite the previous buffer
 	// TODO: implement this
 
 	// otherwise, use a new buffer
 	cam_buffer_t *buffer;
-	checksummed_msg_t *payload;
+	checksummed_msg_t *payloadPtr;
 	message_t msgbuff;
 	message_t *msgptr;
 	msgptr = &msgbuff;
 
+	payloadPtr = (checksummed_msg_t*) msg->data;
+	
+	printf("Message received/n");
+	printfflush();
 	// if message is for this node, copy into single buffer & signal receive
-	if (payload->dest == TOS_NODE_ID) {
+	if (payloadPtr->dest == TOS_NODE_ID) {
 	    *msgptr = *msg;
-	    payload = (checksummed_msg_t*) msgptr->data;
-	    msgptr = signal Receive.receive(msgptr, &(payload->data), payload->len);
+	    payloadPtr = (checksummed_msg_t*) msgptr->data;
+	    printf("Final Destination reached.");
+	    printfflush();
+	    msgptr = signal Receive.receive(msgptr, &(payloadPtr->data), payloadPtr->len);
 	}
 
-	// otherwise, copy into sendBuffer and find a route
+	// otherwise, copy into SendBuffer and find a route
 	else {	    
-	    buffer = sendBuffer.checkoutBuffer();
+	    buffer = call SendBuffer.checkOutBuffer();
 	
 	    if (!buffer) {
 		call Leds.set(0x5);
@@ -88,33 +105,60 @@ implementation {
 
 	    else {
 		buffer->message = *msg;
-		payload = (checksummed_msg_t*) &(buffer->message.data);
-		RouteFinder.getNextHop(payload->dest, payload->ID, payload->src);
-		sendBuffer.checkInBuffer(buffer);
+		payloadPtr = (checksummed_msg_t*) &(buffer->message.data);
+		call RouteFinder.getNextHop(payloadPtr->dest, payloadPtr->ID, payloadPtr->src);
+		call SendBuffer.checkInBuffer(buffer);
 	    }
 	}
+	return msgptr;
     }
 		
 	    
 
     event void SubSend.sendDone(message_t *msg, error_t error) {
 	cam_buffer_t *buffer;
-	call Leds.set(0x0)
+	checksummed_msg_t *payloadPtr;
+	call Leds.set(0x0);
 
-	buffer = sendBuffer.getMsgBuffer(msg);
+	buffer = call SendBuffer.getMsgBuffer(msg);
 	if (!buffer) {
 	    call Leds.set(0x3);
 	}
 	else {
-	    if (error == SUCCESS)
-		call sendBuffer.releaseBuffer(buffer);
-	    else
+	    if (error == SUCCESS) {
+		printf("Send successful.\n");
+		printfflush();
+		call SendBuffer.releaseBuffer(buffer);
+	    }
+	    else {
+		printf("Send failed.\n");
+		printfflush();
 		// whevs
 		// TODO - implement routefinder link healing
-		call SubSend.send(next_id, &(buffer->message), sizeof(checksummed_msg_t));
+		payloadPtr = (checksummed_msg_t*) msg->data;
+		call RouteFinder.getNextHop(payloadPtr->dest, payloadPtr->ID, payloadPtr->src);
+	    }
 	}
     }
-	
+
+    command uint8_t AMSend.maxPayloadLength() {
+	return MAX_PAYLOAD;
+    }
+
+    command void* AMSend.getPayload(message_t* msg, uint8_t len) {
+	checksummed_msg_t* payload;
+
+	if (len > MAX_PAYLOAD)
+	    return NULL;
+	else {
+	    payload = (checksummed_msg_t*) msg->data;
+	    return payload->data;
+	}
+    }
+
+    command error_t AMSend.cancel(message_t* msg) {
+	return call SubSend.cancel(msg);
+    }	
 
     event message_t *Snoop.receive(message_t *msg, void *payload, uint8_t len) {
 	call Leds.set(0x4);

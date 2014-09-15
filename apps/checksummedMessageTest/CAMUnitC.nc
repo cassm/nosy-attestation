@@ -8,15 +8,17 @@ generic configuration CAMUnitC(am_id_t AMId) {
 }
 
 implementation {
-    components new CAMUnitP(AMId) as App;
-    components LedsC;
-    components new TimerMilliC() as Timer;
-    components new AMSenderC(CAMMSG) as SubSend;
-    components new AMReceiverC(CAMMSG) as SubReceive;
-    components new AMSnooperC(CAMMSG);
-    components new CAMBufferC();
-    components new AODVStubC();
-    components new RandomC();
+    components new CAMUnitP(AMId) as App,
+	LedsC,
+	new TimerMilliC() as Timer,
+	new AMSenderC(CAMMSG) as SubSend,
+	new AMReceiverC(CAMMSG) as SubReceive,
+	new AMSnooperC(CAMMSG),
+	new CAMBufferC(),
+	new AODVStubC(),
+	PrintfC,
+	SerialStartC,
+	RandomC;
    
     AMSend = App.AMSend;
     Receive = App.Receive;
@@ -24,11 +26,11 @@ implementation {
     App.SubSend -> SubSend;
     App.SubReceive -> SubReceive;
     
-    App.CAMBuffer -> CAMBufferC;
+    App.SendBuffer -> CAMBufferC;
     App.Snoop -> AMSnooperC;
     App.Leds -> LedsC;
     App.Timer -> Timer;
-    App.Random = RandomC;    
+    App.Random -> RandomC;    
     App.RouteFinder -> AODVStubC;
 
 }
