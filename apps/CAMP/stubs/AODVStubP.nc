@@ -27,7 +27,7 @@ implementation {
 	reqDest = dest_ID;
 	reqMsgId = msg_ID;
 	reqSrc = src_ID;
-	call Timer.startOneShot(1500);
+	call Timer.startOneShot(ROUTING_DELAY);
 	return SUCCESS;
     }
 

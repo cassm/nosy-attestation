@@ -11,16 +11,17 @@ generic module CAMUnitP(am_id_t AMId) {
 	interface Receive as SubReceive;
 	interface Receive as Snoop;
 	interface Leds;
-	interface Timer<TMilli> as Timer;
+	interface Timer<TMilli> as AlarmTimer;
 	interface Timer<TMilli> as LightTimer;
 	interface CAMBuffer as SendBuffer;
 	interface Random;
 	interface RouteFinder;
+	interface LocalTime<TMilli> as SysTime;
     }
 }
 
 implementation {
-    uint8_t msgID = 0; // TODO: this needs to be randomised
+    uint8_t msgID = 0;
     bool busySending = FALSE;
     message_t sentBuff;
 
@@ -29,19 +30,19 @@ implementation {
 	checksummed_msg_t *payload;
 
 	call Leds.set(0x7);
-	call LightTimer.startOneShot(1000);
+	call LightTimer.startOneShot(SIGFLASH_DURATION);
 	if (busySending)
 	    return EBUSY;
 	busySending = TRUE;
 
-	//printf("Send to %d requested.\n", addr);
-	//printfflush();
+	printf("Send to %d requested.\n", addr);
+	printfflush();
 
 	msgBuffer = call SendBuffer.checkOutBuffer();
 	
 	if ( !msgBuffer ) {
-	    //printf("Buffer get failed.");
-	    //printfflush();
+	    printf("Buffer get failed.");
+	    printfflush();
 	    return FAIL;
 	}
 
@@ -53,26 +54,28 @@ implementation {
 	payload->len = len;
 	payload->src = TOS_NODE_ID;
 	payload->dest = addr;
-	payload->ID = msgID;
+	payload->ID = msgID++ + (3 * (TOS_NODE_ID + AMId));
 	
 	call SendBuffer.checkInBuffer(msgBuffer);
 
-	call RouteFinder.getNextHop(addr, msgID++, TOS_NODE_ID);
+	call RouteFinder.getNextHop(addr, payload->ID, TOS_NODE_ID);
     
 	return SUCCESS;
     }
 
     event void RouteFinder.nextHopFound( uint8_t next_id, uint8_t msg_ID, uint8_t src, error_t ok ) {
 	cam_buffer_t *buffer;
-	checksummed_msg_t *payload;
 
 	buffer = call SendBuffer.retrieveMsg(src, msg_ID);
 	if (!buffer) {
-	    //printf("Message retrieval failed.\n");
-	    //printfflush();
+	    printf("Message retrieval failed.\n");
+	    printfflush();
 	}
 	else {
-	    call SubSend.send(next_id, &(buffer->message), sizeof(checksummed_msg_t));
+	    printf("Subsend forwarding message to %d.\n", next_id);
+	    if (call SubSend.send(next_id, &(buffer->message), sizeof(checksummed_msg_t)) != SUCCESS)
+		printf("Subsend failed.\n");
+	    printfflush();
 	}
     }
 
@@ -90,12 +93,12 @@ implementation {
 
 	payloadPtr = (checksummed_msg_t*) msg->data;
 	
-	//printf("SubReceive has received a message for %d.\n", payloadPtr->dest);
-	//printfflush();
+	printf("SubReceive has received a message for %d.\n", payloadPtr->dest);
+	printfflush();
 	// if message is for this node, copy into single buffer & signal receive
 	if (payloadPtr->dest == TOS_NODE_ID) {
 	    call Leds.set(0x7);
-	    call LightTimer.startOneShot(1000);
+	    call LightTimer.startOneShot(SIGFLASH_DURATION);
 	    *msgptr = *msg;
 	    payloadPtr = (checksummed_msg_t*) msgptr->data;
 	    msgptr = signal Receive.receive(msgptr, &(payloadPtr->data), payloadPtr->len);
@@ -105,11 +108,11 @@ implementation {
 	else {	    
 	    buffer = call SendBuffer.checkOutBuffer();
 	    call Leds.set(0x3);
-	    call LightTimer.startOneShot(1000);
+	    call LightTimer.startOneShot(SIGFLASH_DURATION);
 
 	    if (!buffer) {
-		//printf("Buffer get for forwarding failed.\n");
-		//printfflush();
+		printf("Buffer get for forwarding failed.\n");
+		printfflush();
 	    }
 
 	    else {
@@ -131,26 +134,32 @@ implementation {
 
 	buffer = call SendBuffer.getMsgBuffer(msg);
 	if (!buffer) {
-	    //printf("Senddone message buffer retrieval failed.\n");
-	    //printfflush();
+	    printf("Senddone message buffer retrieval failed.\n");
+	    printfflush();
 	}
 	else {
 	    if (error == SUCCESS) {
-		call SendBuffer.releaseBuffer(buffer);
+		if (call SendBuffer.releaseBuffer(buffer) != SUCCESS)
+		    printf("Subsend buffer release failed.\n");
 		signal AMSend.sendDone(&sentBuff, SUCCESS);
 		busySending = FALSE;
-		//printf("\n");
-		//printfflush();
+		printf("\n");
+		printfflush();
 	    }
 	    else {
 		// TODO - implement routefinder link healing
 		if (buffer->retries++ > CAM_MAX_RETRIES) {
+		    printf("Subsend failed. Rerouting.\n");
+		    printfflush();
 		    call SendBuffer.releaseBuffer(buffer);
 		    signal AMSend.sendDone(&sentBuff, FAIL);
 		    busySending = FALSE;
 		}
-		else		    
+		else {
+		    printf("Subsend failed. Retrying.\n");
+		    printfflush();
 		    call RouteFinder.getNextHop(payloadPtr->dest, payloadPtr->ID, payloadPtr->src);
+		}
 	    }
 	}
     }
@@ -175,12 +184,17 @@ implementation {
     }	
 
     event message_t *Snoop.receive(message_t *msg, void *payload, uint8_t len) {
+	checksummed_msg_t *payloadPtr;
+
+	payloadPtr = (checksummed_msg_t*) payload;
+	printf("Snoop overheard packet from %d to %d.\n", payloadPtr->src, payloadPtr->dest);
+	printfflush();
 	call Leds.set(0x1);
-	call Timer.startOneShot(1000);
+	call LightTimer.startOneShot(SIGFLASH_DURATION);
 	return msg;
     }
 
-    event void Timer.fired() {
+    event void AlarmTimer.fired() {
 	call Leds.set(0x0);
     }
 

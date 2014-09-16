@@ -12,7 +12,8 @@ generic configuration CAMUnitC(am_id_t AMId) {
 implementation {
     components new CAMUnitP(AMId) as App,
 	LedsC,
-	new TimerMilliC() as Timer,
+	LocalTimeMilliC as SysTime,
+	new TimerMilliC() as AlarmTimer,
 	new TimerMilliC() as LightTimer,
 	new AMSenderC(CAMMSG) as SubSend,
 	//SendStubC as SubSend,
@@ -37,11 +38,11 @@ implementation {
     App.SendBuffer -> CAMBufferC;
     App.Snoop -> AMSnooperC;
     App.Leds -> LedsC;
-    App.Timer -> Timer;
+    App.SysTime -> SysTime;
+    App.AlarmTimer -> AlarmTimer;
     App.LightTimer -> LightTimer;
     App.Random -> RandomC;    
     App.RouteFinder -> AODVStubC;
-
 }
 
     

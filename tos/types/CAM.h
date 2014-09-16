@@ -14,7 +14,11 @@ enum { CAMMSG = 97,
        CAM_ABORT = 2,
 
        CAM_BUFFER_SIZE = 10,
-       CAM_MAX_RETRIES = 3
+       CAM_MAX_RETRIES = 3,
+
+       ROUTING_DELAY = 1500,
+       CAM_FWD_TIMEOUT = 200,
+       SIGFLASH_DURATION = 1000
 };
 
 typedef nx_struct cam_ack_msg_t {

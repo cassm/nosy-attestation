@@ -23,7 +23,7 @@ implementation {
 	    call RadioControl.start();
 	else {
 	    if (TOS_NODE_ID == 0) 
-		call AMSend.send(4, &msgBuff, sizeof(testmsg_t));
+		call AMSend.send(2, &msgBuff, sizeof(testmsg_t));
 	}
     }
 
@@ -32,13 +32,13 @@ implementation {
     event void AMSend.sendDone(message_t* msg, error_t error) {}
 
     event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len) {
-	call Timer.startOneShot(1500);
+	call Timer.startOneShot(4000);
 	return msg;
     }
 
     event void Timer.fired() {
 	if (TOS_NODE_ID == 0)
-	    call AMSend.send(4, &msgBuff, sizeof(testmsg_t));
+	    call AMSend.send(2, &msgBuff, sizeof(testmsg_t));
 	else
 	    call AMSend.send(0, &msgBuff, sizeof(testmsg_t));
     }
