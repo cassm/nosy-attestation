@@ -69,10 +69,6 @@ implementation {
 	    printfflush();
 	}
 	else {
-	    payload = (checksummed_msg_t*) buffer->message.data;
-	    printf("Next hop towards %d found: %d.\n", payload->dest, next_id);
-	    printfflush();
-
 	    call SubSend.send(next_id, &(buffer->message), sizeof(checksummed_msg_t));
 	}
     }
@@ -91,15 +87,13 @@ implementation {
 
 	payloadPtr = (checksummed_msg_t*) msg->data;
 	
-	printf("Message received/n");
+	printf("SubReceive has received a message for %d.\n", payloadPtr->dest);
 	printfflush();
 	// if message is for this node, copy into single buffer & signal receive
 	if (payloadPtr->dest == TOS_NODE_ID) {
 	    *msgptr = *msg;
 	    payloadPtr = (checksummed_msg_t*) msgptr->data;
-	    printf("Final Destination reached.");
-	    printfflush();
-	    //msgptr = signal Receive.receive(msgptr, &(payloadPtr->data), payloadPtr->len);
+	    msgptr = signal Receive.receive(msgptr, &(payloadPtr->data), payloadPtr->len);
 	}
 
 	// otherwise, copy into SendBuffer and find a route
@@ -107,7 +101,8 @@ implementation {
 	    buffer = call SendBuffer.checkOutBuffer();
 	
 	    if (!buffer) {
-		call Leds.set(0x5);
+		printf("Buffer get for forwarding failed.\n");
+		printfflush();
 	    }
 
 	    else {
@@ -134,16 +129,13 @@ implementation {
 	}
 	else {
 	    if (error == SUCCESS) {
-		printf("Send successful.\n");
-		printfflush();
 		call SendBuffer.releaseBuffer(buffer);
 		signal AMSend.sendDone(&sentBuff, SUCCESS);
 		busySending = FALSE;
+		printf("\n");
+		printfflush();
 	    }
 	    else {
-		printf("Send failed.\n");
-		printfflush();
-		// whevs
 		// TODO - implement routefinder link healing
 		if (buffer->retries++ > CAM_MAX_RETRIES) {
 		    call SendBuffer.releaseBuffer(buffer);
