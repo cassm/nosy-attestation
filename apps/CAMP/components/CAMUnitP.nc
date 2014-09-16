@@ -34,14 +34,14 @@ implementation {
 	    return EBUSY;
 	busySending = TRUE;
 
-	printf("Send to %d requested.\n", addr);
-	printfflush();
+	//printf("Send to %d requested.\n", addr);
+	//printfflush();
 
 	msgBuffer = call SendBuffer.checkOutBuffer();
 	
 	if ( !msgBuffer ) {
-	    printf("Buffer get failed.");
-	    printfflush();
+	    //printf("Buffer get failed.");
+	    //printfflush();
 	    return FAIL;
 	}
 
@@ -68,8 +68,8 @@ implementation {
 
 	buffer = call SendBuffer.retrieveMsg(src, msg_ID);
 	if (!buffer) {
-	    printf("Message retrieval failed.\n");
-	    printfflush();
+	    //printf("Message retrieval failed.\n");
+	    //printfflush();
 	}
 	else {
 	    call SubSend.send(next_id, &(buffer->message), sizeof(checksummed_msg_t));
@@ -90,8 +90,8 @@ implementation {
 
 	payloadPtr = (checksummed_msg_t*) msg->data;
 	
-	printf("SubReceive has received a message for %d.\n", payloadPtr->dest);
-	printfflush();
+	//printf("SubReceive has received a message for %d.\n", payloadPtr->dest);
+	//printfflush();
 	// if message is for this node, copy into single buffer & signal receive
 	if (payloadPtr->dest == TOS_NODE_ID) {
 	    call Leds.set(0x7);
@@ -108,8 +108,8 @@ implementation {
 	    call LightTimer.startOneShot(1000);
 
 	    if (!buffer) {
-		printf("Buffer get for forwarding failed.\n");
-		printfflush();
+		//printf("Buffer get for forwarding failed.\n");
+		//printfflush();
 	    }
 
 	    else {
@@ -131,16 +131,16 @@ implementation {
 
 	buffer = call SendBuffer.getMsgBuffer(msg);
 	if (!buffer) {
-	    printf("Senddone message buffer retrieval failed.\n");
-	    printfflush();
+	    //printf("Senddone message buffer retrieval failed.\n");
+	    //printfflush();
 	}
 	else {
 	    if (error == SUCCESS) {
 		call SendBuffer.releaseBuffer(buffer);
 		signal AMSend.sendDone(&sentBuff, SUCCESS);
 		busySending = FALSE;
-		printf("\n");
-		printfflush();
+		//printf("\n");
+		//printfflush();
 	    }
 	    else {
 		// TODO - implement routefinder link healing
