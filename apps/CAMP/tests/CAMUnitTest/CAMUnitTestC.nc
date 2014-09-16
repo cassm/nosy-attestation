@@ -1,7 +1,7 @@
 #include "CAM.h"
 #include "printf.h"
 
-module CAMTestC {
+module CAMUnitTestC {
     uses {
 	interface Boot;
 	interface AMSend;

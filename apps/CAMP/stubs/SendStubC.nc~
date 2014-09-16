@@ -1,0 +1,9 @@
+component SendStubC {
+    provides interface AMSend;
+}
+implementation {
+    components PrintfC;
+    components SerialStartC;
+    components SendStubP;
+    AMSend = SendStubP;
+}

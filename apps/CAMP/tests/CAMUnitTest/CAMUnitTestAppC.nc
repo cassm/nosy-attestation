@@ -1,12 +1,12 @@
 #include "CAM.h"
 #include "printf.h"
 
-configuration CAMTestAppC {
+configuration CAMUnitTestAppC {
 } 
 
 implementation {
     components MainC, 
-	CAMTestC as App, 
+	CAMUnitTestC as App, 
 	new CAMUnitC(TESTMSG), 
 	new TimerMilliC() as Timer, 
 	PrintfC,
