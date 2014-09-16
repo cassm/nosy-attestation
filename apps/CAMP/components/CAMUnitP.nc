@@ -12,6 +12,7 @@ generic module CAMUnitP(am_id_t AMId) {
 	interface Receive as Snoop;
 	interface Leds;
 	interface Timer<TMilli> as Timer;
+	interface Timer<TMilli> as LightTimer;
 	interface CAMBuffer as SendBuffer;
 	interface Random;
 	interface RouteFinder;
@@ -27,6 +28,8 @@ implementation {
 	cam_buffer_t *msgBuffer;
 	checksummed_msg_t *payload;
 
+	call Leds.set(0x7);
+	call LightTimer.startOneShot(1000);
 	if (busySending)
 	    return EBUSY;
 	busySending = TRUE;
@@ -91,6 +94,8 @@ implementation {
 	printfflush();
 	// if message is for this node, copy into single buffer & signal receive
 	if (payloadPtr->dest == TOS_NODE_ID) {
+	    call Leds.set(0x7);
+	    call LightTimer.startOneShot(1000);
 	    *msgptr = *msg;
 	    payloadPtr = (checksummed_msg_t*) msgptr->data;
 	    msgptr = signal Receive.receive(msgptr, &(payloadPtr->data), payloadPtr->len);
@@ -99,7 +104,9 @@ implementation {
 	// otherwise, copy into SendBuffer and find a route
 	else {	    
 	    buffer = call SendBuffer.checkOutBuffer();
-	
+	    call Leds.set(0x3);
+	    call LightTimer.startOneShot(1000);
+
 	    if (!buffer) {
 		printf("Buffer get for forwarding failed.\n");
 		printfflush();
@@ -120,12 +127,12 @@ implementation {
     event void SubSend.sendDone(message_t *msg, error_t error) {
 	cam_buffer_t *buffer;
 	checksummed_msg_t *payloadPtr;
-	call Leds.set(0x0);
 	sentBuff = *msg;
 
 	buffer = call SendBuffer.getMsgBuffer(msg);
 	if (!buffer) {
-	    call Leds.set(0x3);
+	    printf("Senddone message buffer retrieval failed.\n");
+	    printfflush();
 	}
 	else {
 	    if (error == SUCCESS) {
@@ -168,12 +175,16 @@ implementation {
     }	
 
     event message_t *Snoop.receive(message_t *msg, void *payload, uint8_t len) {
-	call Leds.set(0x4);
-	call Timer.startOneShot(250);
+	call Leds.set(0x1);
+	call Timer.startOneShot(1000);
 	return msg;
     }
 
     event void Timer.fired() {
+	call Leds.set(0x0);
+    }
+
+    event void LightTimer.fired() {
 	call Leds.set(0x0);
     }
 }

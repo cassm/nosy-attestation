@@ -4,7 +4,8 @@ generic configuration CAMUnitC(am_id_t AMId) {
     provides {
 	interface AMSend;
 	interface Receive;
-	interface StdControl as ReceiveControl;
+	// testing only
+	//interface StdControl as ReceiveControl;
     }
 }
 
@@ -12,10 +13,11 @@ implementation {
     components new CAMUnitP(AMId) as App,
 	LedsC,
 	new TimerMilliC() as Timer,
-//	new AMSenderC(CAMMSG) as SubSend,
-	SendStubC as SubSend,
-//	new AMReceiverC(CAMMSG) as SubReceive,
-	ReceiveStubC as SubReceive,
+	new TimerMilliC() as LightTimer,
+	new AMSenderC(CAMMSG) as SubSend,
+	//SendStubC as SubSend,
+	new AMReceiverC(CAMMSG) as SubReceive,
+	//ReceiveStubC as SubReceive,
 	new AMSnooperC(CAMMSG),
 	new CAMBufferC(),
 	new AODVStubC(),
@@ -30,12 +32,13 @@ implementation {
     App.SubReceive -> SubReceive;
 
     // testing only
-    ReceiveControl = SubReceive.ReceiveControl;
+    //ReceiveControl = SubReceive.ReceiveControl;
 
     App.SendBuffer -> CAMBufferC;
     App.Snoop -> AMSnooperC;
     App.Leds -> LedsC;
     App.Timer -> Timer;
+    App.LightTimer -> LightTimer;
     App.Random -> RandomC;    
     App.RouteFinder -> AODVStubC;
 
