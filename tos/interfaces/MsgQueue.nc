@@ -13,5 +13,5 @@ interface MsgQueue {
 
     // note: pop places the requested buffer into a single exit slot. 
     // Be sure call and copy from it atomically.
-    command message_t *pop(message_t* item);
+    command message_t *pop();
 }

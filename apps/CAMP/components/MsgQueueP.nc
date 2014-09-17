@@ -1,6 +1,7 @@
 #include "CAM.h"
+#include "printf.h"
 
-component MsgQueueP {
+generic module MsgQueueP() {
     provides interface MsgQueue;
 } 
 implementation {
@@ -35,13 +36,14 @@ implementation {
 	return -1;
     }
 
-    command error_t initialise() {
+    command error_t MsgQueue.initialise() {
 	// mark all buffers as not in use
 	for ( i = 0 ; i < CAM_QUEUE_SIZE ; i++ )
 	    inUse[i] = FALSE;
+	return SUCCESS;
     }
 
-    command bool isEmpty() {
+    command bool MsgQueue.isEmpty() {
 	for ( i = 0 ; i < CAM_QUEUE_SIZE ; i++ ) {
 	    if ( inUse[i] ) {
 		return FALSE;
@@ -50,9 +52,8 @@ implementation {
 	return TRUE;
     }
 
-    command bool isFull() {
-	// buffer fills up from the bottom, so check the top first
-	for ( i = CAM_QUEUE_SIZE - 1 ; i >= 0 ; i-- ) {
+    command bool MsgQueue.isFull() {
+	for ( i = 0 ; i < CAM_QUEUE_SIZE ; i++ ) {
 	    if ( !inUse[i] ) {
 		return FALSE;
 	    }
@@ -60,7 +61,7 @@ implementation {
 	return TRUE;
     }
 
-    command error_t push(message_t *item) {
+    command error_t MsgQueue.push(message_t *item) {
 	int8_t slot = getEmptySlot();
 
 	// if getEmptySlot returns -1, queue is full
@@ -69,13 +70,14 @@ implementation {
 	}
 
 	// place message in empty slot, with next consecutive index value
-	buffer[slot] = *item;
-	inUse[slot] = TRUE;
 	index[slot] = getMax() + 1;
+	queue[slot] = *item;
+	inUse[slot] = TRUE;
+	
 	return SUCCESS;
     }	
 
-    command error_t pushFront(message_t *item) {
+    command error_t MsgQueue.pushFront(message_t *item) {
 	int8_t slot = getEmptySlot();
 	if ( slot < 0 ) {
 	    return ENOMEM;
@@ -89,7 +91,7 @@ implementation {
 	}
 
 	// place message in empty slot with index 0
-	buffer[slot] = *item;
+        queue[slot] = *item;
 	inUse[slot] = TRUE;
 	index[slot] = 0;
 	return SUCCESS;
@@ -98,8 +100,8 @@ implementation {
 
     // note: pop places the requested buffer into a single exit slot. 
     // Be sure call and copy from it atomically.
-    command message_t *pop(message_t *item) {
-	if ( isEmpty() ) {
+    command message_t *MsgQueue.pop() {
+	if ( getMax() == -1 ) {
 	    return NULL;
 	}
 	
@@ -112,7 +114,7 @@ implementation {
 	
 	// empty slot into exit buffer
 	inUse[i] = FALSE;
-	exitBuffer = buffer[i];
+	exitBuffer = queue[i];
 	
 	// decrement all in use index values
 	for ( i = 0 ; i < CAM_QUEUE_SIZE ; i++ ) {

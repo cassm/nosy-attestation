@@ -1,7 +1,7 @@
-configuration MsgQueueC {
+generic configuration MsgQueueC() {
     provides interface MsgQueue;
 }
 implementation {
-    components MsgQueueP; 
-    MsgQueue = MgQueueP;
+    components new MsgQueueP(); 
+    MsgQueue = MsgQueueP;
 }
