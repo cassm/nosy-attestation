@@ -13,7 +13,7 @@ interface TimedMsgQueue {
     command message_t *pop();
 
     // inserts a message into the queue with the provided alarm time
-    command error_t insert(message_t *msg, uint32_t alarmTime);
+    command error_t insert(message_t *msg, uint32_t alarm);
 
     // removes a message from the queue, if it is present
     command error_t remove(message_t *msg);
