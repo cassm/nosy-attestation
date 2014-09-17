@@ -1,6 +1,8 @@
 #include <CAM.h>
 
 interface TimedMsgQueue {
+    command error_t initialise();
+
     // returns the earliest alarm time
     command uint32_t getEarliestTime();
 
@@ -16,6 +18,6 @@ interface TimedMsgQueue {
     // removes a message from the queue, if it is present
     command error_t remove(message_t *msg);
 
-    // returns a pointer to the stored copy of a message for inspection. 
-    command error_t inspect(message_t *msg);
+    command bool isEmpty();
+    command bool isFull();
 }
