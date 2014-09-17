@@ -13,7 +13,7 @@ enum { CAMMSG = 97,
        CAM_RETRY = 1,
        CAM_ABORT = 2,
 
-       CAM_BUFFER_SIZE = 10,
+       CAM_QUEUE_SIZE = 10,
        CAM_MAX_RETRIES = 3,
 
        ROUTING_DELAY = 1500,
@@ -27,11 +27,9 @@ typedef nx_struct cam_ack_msg_t {
 } cam_ack_msg_t;
 
 typedef nx_struct cam_buffer_t {
-    nx_uint32_t alarmtime;
+    nx_uint8_t index;
     nx_bool inUse;
-    nx_bool locked;
     message_t message;
-    nx_uint8_t retries;
 } cam_buffer_t;
 
 // note - this type reduces the maximum data payload by 4 bytes, due to checksum size.
