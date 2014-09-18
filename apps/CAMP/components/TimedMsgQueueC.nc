@@ -4,6 +4,6 @@ generic configuration TimedMsgQueueC() {
     provides interface TimedMsgQueue;
 }
 implementation {
-    components new TimedMsgQueueP;
+    components new TimedMsgQueueP();
     TimedMsgQueue = TimedMsgQueueP;
 }

@@ -7,6 +7,7 @@
  *******************************************************************************/
 
 #include "CAM.h"
+#include "printf.h"
 
 generic module TimedMsgQueueP() {
     provides interface TimedMsgQueue;
@@ -19,11 +20,13 @@ implementation {
     checksummed_msg_t *payloadPtr;
     uint8_t i;
 
-    bool sameMsg(message_t m1, message_t m2) {
+    bool sameMsg(message_t *m1, message_t *m2) {
+	checksummed_msg_t *p1 = (checksummed_msg_t*) m1->data;
+	checksummed_msg_t *p2 = (checksummed_msg_t*) m2->data;
 	// if src, ID, and type are the same, we can say the message is the same
-	return (m1->src == m2.src && 
-		m1->ID == m2.ID && 
-		m1->type == m2.type);
+	return (p1->src == p2->src && 
+		p1->ID == p2->ID && 
+		p1->type == p2->type);
     }
 
     int8_t getEmptySlot() {
@@ -39,31 +42,33 @@ implementation {
 
     int getEarliestSlot() {
 	int min = -1;
-	// if a time is more than 0.75*2^32 ms later, asume instead that it is less than 0.25*2^32 ms 
+	// if a time is more than 0.75*2^32 ms later, assume instead that it is less than 0.25*2^32 ms 
 	// earlier. This deals with intervals which span a wrap.
-	uint32_t wrapThreshold = (~0) / 4;
+	uint32_t wrapThreshold = -1;
+	wrapThreshold /= 4;
 
 	// find earliest time, accounting for wraps
 	for ( i = 0 ; i < CAM_QUEUE_SIZE ; i++ ) {
 	    if ( inUse[i] ) {
-		if (min == -1 || alarmTime[i] < alarmTime[min] || (alarmTime[i] - alarmTime[min] > wrapThreshold)){
+		if ( min == -1 
+		     || ( alarmTime[i] < alarmTime[min] 
+			  && alarmTime[i] - alarmTime[min] > wrapThreshold * 3 )
+		     || (alarmTime[i] - alarmTime[min]) > wrapThreshold ) {
+
 		    min = i;
-		}
+		}	      
 	    }
 	}
-
+	printfflush();
+	
 	// returns -1 if queue is empty
 	return min;
     }
 
     int findMsg(message_t *key) {
-	checksummed_msg_t *searchPtr;
-	payloadPtr = (checksummed_msg_t*) key->data;
-
 	for ( i = 0 ; i < CAM_QUEUE_SIZE ; i++ ) {
 	    if ( inUse[i] ) {
-		searchPtr = queue[i].data;
-		if ( sameMsg(searchPtr, payloadPtr) )
+		if ( sameMsg(key, &queue[i]) )
 		    return i;
 	    }
 	}
@@ -75,6 +80,7 @@ implementation {
 	for ( i = 0 ; i < CAM_QUEUE_SIZE ; i++ ) {
 	    inUse[i] = FALSE;
 	}
+	return SUCCESS;
     }
 
     // returns the earliest alarm time
@@ -102,7 +108,7 @@ implementation {
 
     // returns a pointer to the message with the earliest alarm time
     command message_t *TimedMsgQueue.pop() {
-	uint8_t result = getEarliestSlot();
+	int result = getEarliestSlot();
 
 	if ( result < 0 )
 	    return NULL;
@@ -119,7 +125,7 @@ implementation {
 	int slot;
 
 	// do not allow duplicates
-	if ( TimedMsgQueue.isInQueue(msg) )
+	if ( call TimedMsgQueue.isInQueue(msg) )
 	    return EALREADY;
 
 	slot = getEmptySlot();
