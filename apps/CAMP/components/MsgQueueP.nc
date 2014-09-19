@@ -89,6 +89,15 @@ implementation {
 	    return TRUE;
     }
 
+    command message_t *MsgQueue.removeMsg(message_t *msg) {
+	int result = findMsg(msg);
+	if ( result < 0 )
+	    return NULL;
+	else {
+	    inUse[i] = FALSE;
+	    return &queue[result];
+	}
+    }	
 
     command error_t MsgQueue.push(message_t *item) {
 	int8_t slot = getEmptySlot();

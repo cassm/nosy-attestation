@@ -16,7 +16,7 @@ interface TimedMsgQueue {
     command error_t insert(message_t *msg, uint32_t alarm);
 
     // removes a message from the queue, if it is present
-    command error_t remove(message_t *msg);
+    command message_t *removeMsg(message_t *msg);
 
     command bool isEmpty();
     command bool isFull();

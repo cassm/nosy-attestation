@@ -5,6 +5,7 @@ generic module CAMUnitP(am_id_t AMId) {
     provides {
 	interface AMSend;
 	interface Receive;
+	interface StdControl;
     }
     uses {
 	interface AMSend as SubSend;
@@ -39,16 +40,22 @@ implementation {
     message_t compareBuffer;
     message_t timeoutBuffer;
 
-    event error_t CAMUnit.initialise() {
-	RoutingQueue.initialise();
-	SendingQueue.initialise();
-	ListeningQueue.initialise();
+    command error_t StdControl.start() {
+	call RoutingQueue.initialise();
+	call SendingQueue.initialise();
+	call ListeningQueue.initialise();
 	receiveBufferPtr = &receiveBuffer;
+	return SUCCESS;
     }
 
-    task RoutingTask() { 
+    command error_t StdControl.stop() {}
+
+    task void RoutingTask() { 
 	message_t *popPtr;
 	checksummed_msg_t *payload;
+
+	if ( call RoutingQueue.isEmpty() )
+	    return;
 
 	if ( routingBusy )
 	    return;
@@ -57,7 +64,7 @@ implementation {
 	// pop and check atomically, to prevent failure to repost if
 	// a msg is pushed onto queue between pop() and routingBusy = FALSE.
 	atomic {
-	    popPtr = routingQueue.pop();
+	    popPtr = call RoutingQueue.pop();
 	    if ( !popPtr ) {
 		routingBusy = FALSE;
 		return;
@@ -65,14 +72,17 @@ implementation {
 	}
 
 	routingBuffer = *popPtr;
-	payload = routingBuffer.data;
+	payload = (checksummed_msg_t*) routingBuffer.data;
 
 	call RouteFinder.getNextHop(payload->dest  , payload->ID , payload->src );
     }
 
-    task SendingTask() { 
+    task void SendingTask() { 
 	message_t *popPtr;
 	checksummed_msg_t *payload;
+
+	if ( call SendingQueue.isEmpty() )
+	    return;
 
 	if ( sendingBusy )
 	    return;
@@ -81,7 +91,7 @@ implementation {
 	// pop and check atomically, to prevent failure to repost if
 	// a msg is pushed onto queue between pop() and sendingBusy = FALSE.
 	atomic {
-	    popPtr = sendingQueue.pop();
+	    popPtr = call SendingQueue.pop();
 	    if ( !popPtr ) {
 		sendingBusy = FALSE;
 		return;
@@ -89,17 +99,17 @@ implementation {
 	}
 
 	sendingBuffer = *popPtr;
-	payload = sendingBuffer.data;
+	payload = (checksummed_msg_t*) sendingBuffer.data;
 
 	// TODO: What to do if subsend.send fails?
 	call SubSend.send(payload->next, &sendingBuffer, sizeof(checksummed_msg_t));
     }
 
-    task ListeningTask() {
+    task void ListeningTask() {
 	uint32_t alarmTime;
 	uint32_t currentTime;
 
-	if ( ListeningQueue.isEmpty() )
+	if ( call ListeningQueue.isEmpty() )
 	    return;
 
 	call ListeningTimer.stop();
@@ -108,22 +118,22 @@ implementation {
 
 	// if alarm is due, signal timer straight away
 	if ( inChronologicalOrder(alarmTime, currentTime) ) 
-	    signal ListenTimer.fired();
+	    signal ListeningTimer.fired();
 	else 
-	    call ListenTimer.startOneShot( alarmTime - currentTime );
+	    call ListeningTimer.startOneShot( alarmTime - currentTime );
     }
 
-    task HeardTask() {
+    task void HeardTask() {
 	checksummed_msg_t *newPayload;
 	checksummed_msg_t *storedPayload;
 
-	if ( HeardQueue.isEmpty() )
+	if ( call HeardQueue.isEmpty() )
 	    return;
 	
-	heardBuffer = *HeardQueue.pop();
+	heardBuffer = *call HeardQueue.pop();
 
-	if ( ListeningQueue.isInQueue(&heardBuffer) ) {
-	    compareBuffer = *ListeningQueue.removeMsg(&heardBuffer);
+	if ( call ListeningQueue.isInQueue(&heardBuffer) ) {
+	    compareBuffer = *call ListeningQueue.removeMsg(&heardBuffer);
 
 	    newPayload = (checksummed_msg_t*) heardBuffer.data;
 	    storedPayload = (checksummed_msg_t*) compareBuffer.data;
@@ -161,23 +171,23 @@ implementation {
 	    */
 	}
 	
-	ListeningQueue.insert(heardBuffer, CAM_EAVESDROPPING_TIMEOUT + call SysTime.get() );
+	call ListeningQueue.insert(&heardBuffer, CAM_EAVESDROPPING_TIMEOUT + call SysTime.get() );
 	post ListeningTask();	
     }
 
     task void TimeoutTask() {
 	checksummed_msg_t *payload;
 
-	if ( TimeoutQueue.isEmpty() )
+	if ( call TimeoutQueue.isEmpty() )
 	    return;
 
-	timeoutBuffer = timeoutQueue.pop();
+	timeoutBuffer = *call TimeoutQueue.pop();
 	payload = (checksummed_msg_t*) timeoutBuffer.data;
 
-	if ( HeardQueue.isInQueue(&timeoutBuffer) ) {
+	if ( call HeardQueue.isInQueue(&timeoutBuffer) ) {
 	    // BEWARE naughty shim code 
-	    ListenQueue.insert(&timeoutBuffer);
-	    post ListenTask();
+	    call ListeningQueue.insert(&timeoutBuffer, CAM_EAVESDROPPING_TIMEOUT * call SysTime.get());
+	    post ListeningTask();
 	}
 
 	// if sent by this node...
@@ -185,29 +195,35 @@ implementation {
 	    // if max retries, reroute
 	    if ( payload->retry++ >= CAM_MAX_RETRIES ) {
 		// TODO: add to blacklist
-		call RoutingBuffer.push(&heardBuffer);
-		post RoutingTask();
+		printf("Send to %d failed. Aborting..\n", payload->next);
+		printfflush();
+//		call RoutingQueue.push(&heardBuffer);
+//		post RoutingTask();
 	    }
 
 	    // if not max retries, resend
 	    else {
-		call SendingBuffer.push(&heardBuffer);
+		printf("Send to %d failed. Retrying (attempt %d of 3).\n", payload->next, payload->retry);
+		printfflush();
+		call SendingQueue.push(&heardBuffer);
 		post SendingTask();
 	    } 
 	}
 
-	/* TODO: add reporting
+	// TODO: add reporting
 	else {
-	    // report packet drop?
+	    printf("Send from %d to %d failed.\n", payload->curr, payload->next);
+	    printfflush();
+
 	}
-	*/
+	
     }
 
     command error_t AMSend.send(am_addr_t addr, message_t *msg, uint8_t len) {
+	checksummed_msg_t *payload;
+
 	if ( call RoutingQueue.isFull() )
 	    return EBUSY;
-
-	checksummed_msg_t *payload;
 
 	payload = (checksummed_msg_t*) msg->data;
 
@@ -219,7 +235,7 @@ implementation {
 	payload->curr = TOS_NODE_ID;
 	payload->next = TOS_NODE_ID;
 	payload->ID = msgID++;
-	payload->retries = 0;
+	payload->retry = 0;
 	
 	if ( call RoutingQueue.push(msg) == ENOMEM )
 	    return EBUSY;
@@ -230,9 +246,9 @@ implementation {
     }
 
     event void RouteFinder.nextHopFound( uint8_t next_id, uint8_t msg_ID, uint8_t src, error_t ok ) {
-	checksummed_msg_t *payload = routingBuffer.data;
+	checksummed_msg_t *payload = (checksummed_msg_t*) routingBuffer.data;
 
-	if ( payload->retries == 0 ) {
+	if ( payload->retry == 0 ) {
 	    payload->prev = payload->curr;
 	    payload->curr = payload->next;
 	    payload->next = next_id;
@@ -240,22 +256,22 @@ implementation {
 
 	else {
 	    payload->next = next_id;
-	    payload->retries = 0;
+	    payload->retry = 0;
 	}
 
 	// TODO - what to do if sendingqueue full?
-	SendingQueue.push(&routingBuffer);
+	call SendingQueue.push(&routingBuffer);
 	post SendingTask();
 
-	RoutingBusy = FALSE;
+	routingBusy = FALSE;
 
-	if ( !RoutingQueue.isEmpty() )
+	if ( !call RoutingQueue.isEmpty() )
 	    post RoutingTask();
     }
 
 
     event void SubSend.sendDone(message_t *msg, error_t error) {
-	checksummed_msg_t *payloadPtr = msg->data;
+	checksummed_msg_t *payload = (checksummed_msg_t*) msg->data;
 
 	// TODO: but what if it is b0rken?
 	if ( error != SUCCESS ) {
@@ -264,11 +280,11 @@ implementation {
 	}
 
 	// set alarm for CAM_FWD_TIMEOUT ms in the future
-	ListeningQueue.insert(msg, CAM_FWD_TIMEOUT + call Systime.get());
+	call ListeningQueue.insert(msg, CAM_FWD_TIMEOUT + call SysTime.get());
 	
 	sendingBusy = FALSE;
 
-	if ( !SendingQueue.isEmpty() )
+	if ( !call SendingQueue.isEmpty() )
 	    post SendingTask();
     }
 
@@ -284,7 +300,7 @@ implementation {
 	    *receiveBufferPtr = *msg;
 	    payloadPtr = (checksummed_msg_t*) receiveBuffer.data;
 
-	    receiveBufferPtr = signal Receive.receive(msgptr, &(payloadPtr->data), payloadPtr->len);
+	    receiveBufferPtr = signal Receive.receive(receiveBufferPtr, &(payloadPtr->data), payloadPtr->len);
 
 	    return msg;
 	}
@@ -293,29 +309,30 @@ implementation {
 	// TODO: what to do if queue is full?
 	call RoutingQueue.push(msg);
 	post RoutingTask();
+	return msg;
     }
 
     event void ListeningTimer.fired() {
 	uint32_t alarmTime;
 	message_t *popPtr;
 
-	if ( ListeningQueue.isEmpty() )
+	if ( call ListeningQueue.isEmpty() )
 	    return;
 
 	alarmTime = call ListeningQueue.getEarliestTime();
 	popPtr = call ListeningQueue.pop();
 	
-	TimeoutQueue.push(popPtr);
+	call TimeoutQueue.insert(popPtr, alarmTime);
 
 	post TimeoutTask();
 
-	if ( !ListenQueue.isEmpty() )
-	    post ListenTask();
+	if ( !call ListeningQueue.isEmpty() )
+	    post ListeningTask();
     }
 
     event message_t *Snoop.receive(message_t *msg, void *payload, uint8_t len) {
 	// TODO: what to do if quue is full?
-	HeardQueue.push(msg);
+	call HeardQueue.push(msg);
 	
 	post HeardTask();
 

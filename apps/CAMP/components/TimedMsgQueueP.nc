@@ -45,7 +45,7 @@ implementation {
 
 	for ( i = 0 ; i < CAM_QUEUE_SIZE ; i++ ) {
 	    if ( inUse[i] ) {
-		if ( min == -1 || inChronologicalOrder( alarmTime[i], alarmTime[min] ) {
+		if ( min == -1 || inChronologicalOrder( alarmTime[i], alarmTime[min]) ) {
 		    min = i;
 		}	      
 	    }
@@ -132,14 +132,15 @@ implementation {
     }
 
     // removes a message from the queue, if it is present
-    command error_t TimedMsgQueue.remove(message_t *msg) {
+    command message_t *TimedMsgQueue.removeMsg(message_t *msg) {
 	int result = findMsg(msg);
 	if ( result < 0 ) {
-	    return EINVAL;
+	    return NULL;
 	}
 	else {
 	    inUse[i] = FALSE;
-	    return SUCCESS;
+	    exitBuffer = queue[i];
+	    return &exitBuffer;
 	}
     }
 	    

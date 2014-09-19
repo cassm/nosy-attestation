@@ -62,7 +62,7 @@ typedef nx_struct checksummed_msg_t {
     nx_uint8_t type;
     nx_uint8_t len;
     nx_uint8_t data[MAX_PAYLOAD];
-    nx_uint8_t retries;
+    nx_uint8_t retry;
 } checksummed_msg_t;
 
 typedef nx_struct testmsg_t {
