@@ -5,7 +5,7 @@
 
 enum { CAMMSG = 97,
        TESTMSG = 98,
-       MAX_PAYLOAD = (TOSH_DATA_LENGTH - 9),
+       MAX_PAYLOAD = (TOSH_DATA_LENGTH - 13),
        CAM_TIMEOUT = 50,
        CAM_RETRIES = 3,
 
@@ -17,9 +17,24 @@ enum { CAMMSG = 97,
        CAM_MAX_RETRIES = 3,
 
        ROUTING_DELAY = 1500,
-       CAM_FWD_TIMEOUT = 200,
+       CAM_FWD_TIMEOUT = 500,
+       CAM_EAVESDROPPING_TIMEOUT = 700,
        SIGFLASH_DURATION = 1000
 };
+
+bool inChronologicalOrder(uint32_t t1, uint32_t t2) {
+    // if a time is more than 0.75*2^32 ms later, assume instead that it is less than 0.25*2^32 ms 
+    // earlier. This deals with intervals which span a wrap.
+
+    // find earliest time, accounting for wraps
+
+
+    uint32_t wrapThreshold = -1;
+    wrapThreshold /= 4;
+  
+    return ( (t1 < t2 && (t1 - t2 > wrapThreshold * 3))
+	     || t1 - t2 > wrapThreshold );
+}
 
 typedef nx_struct cam_ack_msg_t {
     nx_uint8_t dsn;
@@ -36,11 +51,18 @@ typedef nx_struct cam_buffer_t {
 typedef nx_struct checksummed_msg_t {
     nx_uint32_t checksum;
     nx_uint8_t ID;
-    nx_uint8_t dest;
+
     nx_uint8_t src;
+    nx_uint8_t dest;
+
+    nx_uint8_t prev;
+    nx_uint8_t curr;
+    nx_uint8_t next;
+
     nx_uint8_t type;
     nx_uint8_t len;
     nx_uint8_t data[MAX_PAYLOAD];
+    nx_uint8_t retries;
 } checksummed_msg_t;
 
 typedef nx_struct testmsg_t {

@@ -13,14 +13,21 @@ implementation {
     components new CAMUnitP(AMId) as App,
 	LedsC,
 	LocalTimeMilliC as SysTime,
-	new TimerMilliC() as AlarmTimer,
-	new TimerMilliC() as LightTimer,
+
+	new TimerMilliC() as ListeningTimer,
+
+	new MsgQueueC() as RoutingQueue,
+	new MsgQueueC() as SendingQueue,
+	new MsgQueueC() as HeardQueue,
+	new TimedMsgQueueC() as ListeningQueue,
+	new TimedMsgQueueC() as TimeoutQueue,
+
 	new AMSenderC(CAMMSG) as SubSend,
 	//SendStubC as SubSend,
 	new AMReceiverC(CAMMSG) as SubReceive,
 	//ReceiveStubC as SubReceive,
 	new AMSnooperC(CAMMSG),
-	new CAMBufferC(),
+
 	new AODVStubC(),
 	PrintfC,
 	SerialStartC,
@@ -32,10 +39,13 @@ implementation {
     App.SubSend -> SubSend;
     App.SubReceive -> SubReceive;
 
+    App.RoutingQueue->RoutingQueue;
+    App.SendingQueue->SendingQueue;
+    App.ListeningQueue->ListeningQueue;
+
     // testing only
     //ReceiveControl = SubReceive.ReceiveControl;
 
-    App.SendBuffer -> CAMBufferC;
     App.Snoop -> AMSnooperC;
     App.Leds -> LedsC;
     App.SysTime -> SysTime;

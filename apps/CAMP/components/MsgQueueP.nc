@@ -14,6 +14,25 @@ implementation {
     bool initialised = FALSE;
     uint8_t i;
 
+    bool sameMsg(message_t *m1, message_t *m2) {
+	checksummed_msg_t *p1 = (checksummed_msg_t*) m1->data;
+	checksummed_msg_t *p2 = (checksummed_msg_t*) m2->data;
+	// if src, ID, and type are the same, we can say the message is the same
+	return (p1->src == p2->src && 
+		p1->ID == p2->ID && 
+		p1->type == p2->type);
+    }
+
+    int findMsg(message_t *key) {
+	for ( i = 0 ; i < CAM_QUEUE_SIZE ; i++ ) {
+	    if ( inUse[i] ) {
+		if ( sameMsg(key, &queue[i]) )
+		    return i;
+	    }
+	}
+	return -1;
+    }
+
     int8_t getMax() {
 	int8_t max = -1;
 
@@ -60,6 +79,16 @@ implementation {
 	}
 	return TRUE;
     }
+
+    // check whether a message is already in the queue
+    command bool MsgQueue.isInQueue(message_t *msg) {
+	int result = findMsg(msg);
+	if ( result < 0 )
+	    return FALSE;
+	else
+	    return TRUE;
+    }
+
 
     command error_t MsgQueue.push(message_t *item) {
 	int8_t slot = getEmptySlot();
@@ -125,6 +154,8 @@ implementation {
 
 	return &exitBuffer;
     }
+
+    
 }
 
 	

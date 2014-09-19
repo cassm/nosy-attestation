@@ -7,6 +7,10 @@ interface MsgQueue {
 
     command bool isFull();
 
+    command bool MsgQueue.isInQueue(message_t *msg);
+
+    command message_t *MsgQueue.removeMsg(message_t *msg);
+
     command error_t push(message_t* item);
 
     command error_t pushFront(message_t* item);

@@ -42,24 +42,14 @@ implementation {
 
     int getEarliestSlot() {
 	int min = -1;
-	// if a time is more than 0.75*2^32 ms later, assume instead that it is less than 0.25*2^32 ms 
-	// earlier. This deals with intervals which span a wrap.
-	uint32_t wrapThreshold = -1;
-	wrapThreshold /= 4;
 
-	// find earliest time, accounting for wraps
 	for ( i = 0 ; i < CAM_QUEUE_SIZE ; i++ ) {
 	    if ( inUse[i] ) {
-		if ( min == -1 
-		     || ( alarmTime[i] < alarmTime[min] 
-			  && alarmTime[i] - alarmTime[min] > wrapThreshold * 3 )
-		     || (alarmTime[i] - alarmTime[min]) > wrapThreshold ) {
-
+		if ( min == -1 || inChronologicalOrder( alarmTime[i], alarmTime[min] ) {
 		    min = i;
 		}	      
 	    }
 	}
-	printfflush();
 	
 	// returns -1 if queue is empty
 	return min;
