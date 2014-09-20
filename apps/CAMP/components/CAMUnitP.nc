@@ -54,6 +54,9 @@ implementation {
 	message_t *popPtr;
 	checksummed_msg_t *payload;
 
+	printf("RoutingTask\n");
+	printfflush();
+
 	if ( call RoutingQueue.isEmpty() )
 	    return;
 
@@ -80,6 +83,9 @@ implementation {
     task void SendingTask() { 
 	message_t *popPtr;
 	checksummed_msg_t *payload;
+
+	printf("SendingTask\n");
+	printfflush();
 
 	if ( call SendingQueue.isEmpty() )
 	    return;
@@ -109,11 +115,15 @@ implementation {
 	uint32_t alarmTime;
 	uint32_t currentTime;
 
+	printf("ListeningTask\n");
+	printfflush();
+
 	if ( call ListeningQueue.isEmpty() )
 	    return;
 
 	call ListeningTimer.stop();
 
+	currentTime = call SysTime.get();
 	alarmTime = call ListeningQueue.getEarliestTime();
 
 	// if alarm is due, signal timer straight away
@@ -126,6 +136,9 @@ implementation {
     task void HeardTask() {
 	checksummed_msg_t *newPayload;
 	checksummed_msg_t *storedPayload;
+
+	printf("HeardTask\n");
+	printfflush();
 
 	if ( call HeardQueue.isEmpty() )
 	    return;
@@ -178,6 +191,9 @@ implementation {
     task void TimeoutTask() {
 	checksummed_msg_t *payload;
 
+	printf("TimeoutTask\n");
+	printfflush();
+
 	if ( call TimeoutQueue.isEmpty() )
 	    return;
 
@@ -205,7 +221,7 @@ implementation {
 	    else {
 		printf("Send to %d failed. Retrying (attempt %d of 3).\n", payload->next, payload->retry);
 		printfflush();
-		call SendingQueue.push(&heardBuffer);
+		call SendingQueue.push(&timeoutBuffer);
 		post SendingTask();
 	    } 
 	}
@@ -221,6 +237,9 @@ implementation {
 
     command error_t AMSend.send(am_addr_t addr, message_t *msg, uint8_t len) {
 	checksummed_msg_t *payload;
+
+	printf("AMSend.send\n");
+	printfflush();
 
 	if ( call RoutingQueue.isFull() )
 	    return EBUSY;
@@ -248,6 +267,9 @@ implementation {
     event void RouteFinder.nextHopFound( uint8_t next_id, uint8_t msg_ID, uint8_t src, error_t ok ) {
 	checksummed_msg_t *payload = (checksummed_msg_t*) routingBuffer.data;
 
+	printf("RouteFinder.nextHopFound\n");
+	printfflush();
+
 	if ( payload->retry == 0 ) {
 	    payload->prev = payload->curr;
 	    payload->curr = payload->next;
@@ -271,7 +293,11 @@ implementation {
 
 
     event void SubSend.sendDone(message_t *msg, error_t error) {
+	uint32_t alarmTime;
 	checksummed_msg_t *payload = (checksummed_msg_t*) msg->data;
+
+	printf("SubSend.sendDone\n");
+	printfflush();
 
 	// TODO: but what if it is b0rken?
 	if ( error != SUCCESS ) {
@@ -279,8 +305,13 @@ implementation {
 	    return;
 	}
 
+	alarmTime = CAM_FWD_TIMEOUT + call SysTime.get();
+
 	// set alarm for CAM_FWD_TIMEOUT ms in the future
-	call ListeningQueue.insert(msg, CAM_FWD_TIMEOUT + call SysTime.get());
+	call ListeningQueue.insert(msg, alarmTime);
+	printf("Timeout: %lu\n", alarmTime - call SysTime.get());
+	printfflush();
+	post ListeningTask();
 	
 	sendingBusy = FALSE;
 
@@ -289,8 +320,10 @@ implementation {
     }
 
     event message_t *SubReceive.receive(message_t *msg, void *payload, uint8_t len) {
-
 	checksummed_msg_t *payloadPtr;
+
+	printf("SubReceive.receive\n");
+	printfflush();
 
 	payloadPtr = (checksummed_msg_t*) msg->data;
 	
@@ -316,6 +349,9 @@ implementation {
 	uint32_t alarmTime;
 	message_t *popPtr;
 
+	printf("ListeningTimer.fired\n");
+	printfflush();
+
 	if ( call ListeningQueue.isEmpty() )
 	    return;
 
@@ -334,6 +370,10 @@ implementation {
 	// TODO: what to do if quue is full?
 	call HeardQueue.push(msg);
 	
+	printf("Snoop.receive\n");
+	printfflush();
+
+
 	post HeardTask();
 
 	return msg;
