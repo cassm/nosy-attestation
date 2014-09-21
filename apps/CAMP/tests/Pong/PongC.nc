@@ -8,6 +8,7 @@ module PongC {
 	interface AMSend;
 	interface Receive;
 	interface Timer<TMilli> as Timer;
+	interface StdControl as CAMControl;
     }
 }
 implementation {
@@ -15,6 +16,7 @@ implementation {
     testmsg_t *payloadPtr = (testmsg_t*) msgBuff.data;
 
     event void Boot.booted() {
+	call CAMControl.start();
 	call RadioControl.start();
     }
 
@@ -23,7 +25,7 @@ implementation {
 	    call RadioControl.start();
 	else {
 	    if (TOS_NODE_ID == 0) 
-		call AMSend.send(2, &msgBuff, sizeof(testmsg_t));
+		call AMSend.send(4, &msgBuff, sizeof(testmsg_t));
 	}
     }
 
@@ -32,13 +34,15 @@ implementation {
     event void AMSend.sendDone(message_t* msg, error_t error) {}
 
     event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len) {
+	printf("Received!!!\n");
+	printfflush();
 	call Timer.startOneShot(1000);
 	return msg;
     }
 
     event void Timer.fired() {
 	if (TOS_NODE_ID == 0)
-	    call AMSend.send(2, &msgBuff, sizeof(testmsg_t));
+	    call AMSend.send(4, &msgBuff, sizeof(testmsg_t));
 	else
 	    call AMSend.send(0, &msgBuff, sizeof(testmsg_t));
     }

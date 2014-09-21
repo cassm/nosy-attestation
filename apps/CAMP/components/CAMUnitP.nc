@@ -11,12 +11,15 @@ generic module CAMUnitP(am_id_t AMId) {
 	interface AMSend as SubSend;
 	interface Receive as SubReceive;
 	interface Receive as Snoop;
+	interface SplitControl as AMControl;
 	interface Leds;
 	interface Timer<TMilli> as ListeningTimer;
+	interface Timer<TMilli> as LightTimer;
 
 	interface MsgQueue as RoutingQueue;
 	interface MsgQueue as SendingQueue;
 	interface MsgQueue as HeardQueue;
+	interface MsgQueue as ReceivedQueue;
 	interface TimedMsgQueue as ListeningQueue;
 	interface TimedMsgQueue as TimeoutQueue;
 
@@ -34,28 +37,52 @@ implementation {
 
     message_t routingBuffer;
     message_t sendingBuffer;
-    message_t receiveBuffer;
-    message_t* receiveBufferPtr;
+    message_t receivedBuffer;
+    message_t exitBuffer;
+    message_t* exitBufferPtr;
     message_t heardBuffer;
     message_t compareBuffer;
     message_t timeoutBuffer;
 
     command error_t StdControl.start() {
+	exitBufferPtr = &exitBuffer;
 	call RoutingQueue.initialise();
 	call SendingQueue.initialise();
+	call HeardQueue.initialise();
+	call ReceivedQueue.initialise();
 	call ListeningQueue.initialise();
-	receiveBufferPtr = &receiveBuffer;
-	return SUCCESS;
+	call TimeoutQueue.initialise();
+	call AMControl.start();
+	return SUCCESS;	
+    }
+
+    event void AMControl.startDone(error_t err) {
+	if (err != SUCCESS) {
+	    call AMControl.start();
+	}
+    }
+
+    event void AMControl.stopDone(error_t err) {
+	// do nothing
     }
 
     command error_t StdControl.stop() {}
 
+    void printPacket(message_t* msg) {
+	checksummed_msg_t *payload = (checksummed_msg_t*) msg->data;
+
+	printf("S: %d | D: %d | P: %d | C: %d | N: %d\n", 
+	       payload->src,
+	       payload->dest,
+	       payload->prev,
+	       payload->curr,
+	       payload->next);
+	printfflush();
+    }
+
     task void RoutingTask() { 
 	message_t *popPtr;
 	checksummed_msg_t *payload;
-
-	printf("RoutingTask\n");
-	printfflush();
 
 	if ( call RoutingQueue.isEmpty() )
 	    return;
@@ -108,15 +135,24 @@ implementation {
 	payload = (checksummed_msg_t*) sendingBuffer.data;
 
 	// TODO: What to do if subsend.send fails?
-	call SubSend.send(payload->next, &sendingBuffer, sizeof(checksummed_msg_t));
+	printf("SubSending to %d.\n", payload->next);
+
+	if ( call SubSend.send(payload->next, &sendingBuffer, sizeof(checksummed_msg_t)) != SUCCESS ) {
+	    call SendingQueue.push(&sendingBuffer);
+	    sendingBusy = FALSE;
+	    printf("Send failed, retrying...\n");
+	    printfflush();
+	    post SendingTask();
+	}
+	else {
+	    printf("Send successful\n");
+	    printfflush();
+	}
     }
 
     task void ListeningTask() {
 	uint32_t alarmTime;
 	uint32_t currentTime;
-
-	printf("ListeningTask\n");
-	printfflush();
 
 	if ( call ListeningQueue.isEmpty() )
 	    return;
@@ -136,9 +172,6 @@ implementation {
     task void HeardTask() {
 	checksummed_msg_t *newPayload;
 	checksummed_msg_t *storedPayload;
-
-	printf("HeardTask\n");
-	printfflush();
 
 	if ( call HeardQueue.isEmpty() )
 	    return;
@@ -191,9 +224,6 @@ implementation {
     task void TimeoutTask() {
 	checksummed_msg_t *payload;
 
-	printf("TimeoutTask\n");
-	printfflush();
-
 	if ( call TimeoutQueue.isEmpty() )
 	    return;
 
@@ -230,21 +260,58 @@ implementation {
 	else {
 	    printf("Send from %d to %d failed.\n", payload->curr, payload->next);
 	    printfflush();
-
 	}
 	
+    }
+
+    task void ReceivedTask() {
+	checksummed_msg_t *payload;
+
+	printf("ReceivedTask\n");
+	printfflush();
+
+	if ( call ReceivedQueue.isEmpty() )
+	    return;
+
+	receivedBuffer = *call ReceivedQueue.pop();
+	*exitBufferPtr = receivedBuffer;
+
+	payload = (checksummed_msg_t*) receivedBuffer.data;
+	
+	payload->retry = 0;
+
+	// send ack
+	payload->prev = payload->curr;
+	payload->curr = TOS_NODE_ID;
+	payload->next = (uint8_t) AM_BROADCAST_ADDR;
+
+	call SendingQueue.push(&receivedBuffer);
+	post SendingTask();
+	
+	payload = (checksummed_msg_t*) exitBufferPtr->data;
+	
+	// signal receive
+	printf("Signalling receive\n");
+	printfflush();
+	exitBufferPtr = signal Receive.receive(exitBufferPtr, &(payload->data), payload->len);
+
+	if ( !call ReceivedQueue.isEmpty() )
+	    post ReceivedTask();
     }
 
     command error_t AMSend.send(am_addr_t addr, message_t *msg, uint8_t len) {
 	checksummed_msg_t *payload;
 
-	printf("AMSend.send\n");
-	printfflush();
+	call Leds.set(0x7);
+	call LightTimer.startOneShot(250);
 
 	if ( call RoutingQueue.isFull() )
 	    return EBUSY;
 
 	payload = (checksummed_msg_t*) msg->data;
+
+	printf("Send to %d requested.\n", addr);
+	printfflush();
 
 	payload->type = AMId;
 	payload->len = len;
@@ -266,9 +333,6 @@ implementation {
 
     event void RouteFinder.nextHopFound( uint8_t next_id, uint8_t msg_ID, uint8_t src, error_t ok ) {
 	checksummed_msg_t *payload = (checksummed_msg_t*) routingBuffer.data;
-
-	printf("RouteFinder.nextHopFound\n");
-	printfflush();
 
 	if ( payload->retry == 0 ) {
 	    payload->prev = payload->curr;
@@ -293,26 +357,22 @@ implementation {
 
 
     event void SubSend.sendDone(message_t *msg, error_t error) {
-	uint32_t alarmTime;
 	checksummed_msg_t *payload = (checksummed_msg_t*) msg->data;
 
-	printf("SubSend.sendDone\n");
-	printfflush();
+	// if this is not an ack
+	if ( payload->dest != TOS_NODE_ID ) {
+	    // TODO: but what if it is b0rken?
+	    if ( error != SUCCESS ) {
+		call SubSend.send(payload->next, msg, sizeof(checksummed_msg_t));
+		return;
+	    }
 
-	// TODO: but what if it is b0rken?
-	if ( error != SUCCESS ) {
-	    call SubSend.send(payload->next, msg, sizeof(checksummed_msg_t));
-	    return;
+	    // set alarm for CAM_FWD_TIMEOUT ms in the future
+	    call ListeningQueue.insert(msg, CAM_FWD_TIMEOUT + call SysTime.get());
+	    post ListeningTask();
+	
 	}
 
-	alarmTime = CAM_FWD_TIMEOUT + call SysTime.get();
-
-	// set alarm for CAM_FWD_TIMEOUT ms in the future
-	call ListeningQueue.insert(msg, alarmTime);
-	printf("Timeout: %lu\n", alarmTime - call SysTime.get());
-	printfflush();
-	post ListeningTask();
-	
 	sendingBusy = FALSE;
 
 	if ( !call SendingQueue.isEmpty() )
@@ -322,23 +382,37 @@ implementation {
     event message_t *SubReceive.receive(message_t *msg, void *payload, uint8_t len) {
 	checksummed_msg_t *payloadPtr;
 
-	printf("SubReceive.receive\n");
-	printfflush();
-
 	payloadPtr = (checksummed_msg_t*) msg->data;
-	
-	// if message destination is this node, signal receive
-	if (payloadPtr->dest == TOS_NODE_ID) {
-	    // TODO: send ack
-	    *receiveBufferPtr = *msg;
-	    payloadPtr = (checksummed_msg_t*) receiveBuffer.data;
 
-	    receiveBufferPtr = signal Receive.receive(receiveBufferPtr, &(payloadPtr->data), payloadPtr->len);
+	printf("Message for %d  subreceived\n", payloadPtr->dest);
+	printPacket(msg);
+	call Leds.set(0x3);
+	call LightTimer.startOneShot(250);
 
+	// don't listen for this any more
+	call ListeningQueue.removeMsg(msg);
+	post ListeningTask();
+
+	// TODO: What to do if queue is full?
+	// if the message is for this node, receive it
+	if ( payloadPtr->dest == TOS_NODE_ID ) {
+	    call ReceivedQueue.push(msg);
+	    post ReceivedTask();
 	    return msg;
 	}
 
-	// else, route it
+	// if message is an ack, process it
+	if ( payloadPtr->dest == payloadPtr->curr ) {
+	    call ListeningQueue.removeMsg(msg);
+	    post ListeningTask();
+	    return msg;
+	}
+	
+	printf("Forwarding...\n");
+	printfflush();
+
+	// otherwise, forward it
+     
 	// TODO: what to do if queue is full?
 	call RoutingQueue.push(msg);
 	post RoutingTask();
@@ -348,9 +422,6 @@ implementation {
     event void ListeningTimer.fired() {
 	uint32_t alarmTime;
 	message_t *popPtr;
-
-	printf("ListeningTimer.fired\n");
-	printfflush();
 
 	if ( call ListeningQueue.isEmpty() )
 	    return;
@@ -367,14 +438,30 @@ implementation {
     }
 
     event message_t *Snoop.receive(message_t *msg, void *payload, uint8_t len) {
+	checksummed_msg_t *payloadPtr;
+
+//	printf("Snoop.receive\n");
+//	printPacket(msg);
+
 	// TODO: what to do if quue is full?
-	call HeardQueue.push(msg);
-	
-	printf("Snoop.receive\n");
-	printfflush();
+	call Leds.set(0x1);
+	call LightTimer.startOneShot(250);
 
+	payloadPtr = (checksummed_msg_t*) payload;
 
-	post HeardTask();
+	// process acks
+	if ( payloadPtr->dest == payloadPtr->curr ) {
+	    printf("Delivery of message from %d to %d acknowledged.\n", payloadPtr->src, payloadPtr->dest);
+	    printfflush();
+	    call ListeningQueue.removeMsg(msg);
+	    post ListeningTask();
+	}
+
+	// if not ack, listen for as normal
+	else {
+	    call HeardQueue.push(msg);
+	    post HeardTask();
+	}
 
 	return msg;
     }
@@ -399,4 +486,8 @@ implementation {
     command error_t AMSend.cancel(message_t* msg) {
 	return call SubSend.cancel(msg);
     }	
+
+    event void LightTimer.fired() {
+	call Leds.set(0);
+    }
 }

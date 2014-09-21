@@ -9,16 +9,12 @@ enum { CAMMSG = 97,
        CAM_TIMEOUT = 50,
        CAM_RETRIES = 3,
 
-       CAM_SUCCESS = 0,
-       CAM_RETRY = 1,
-       CAM_ABORT = 2,
-
        CAM_QUEUE_SIZE = 10,
        CAM_MAX_RETRIES = 3,
 
-       ROUTING_DELAY = 1500,
-       CAM_FWD_TIMEOUT = 500,
-       CAM_EAVESDROPPING_TIMEOUT = 700,
+       ROUTING_DELAY = 80,
+       CAM_FWD_TIMEOUT = 1250,
+       CAM_EAVESDROPPING_TIMEOUT = 1500,
        SIGFLASH_DURATION = 1000
 };
 

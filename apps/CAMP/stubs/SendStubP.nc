@@ -15,7 +15,8 @@ implementation {
     command error_t AMSend.send(am_addr_t addr, message_t* msg, uint8_t len) {
 	msgPtr = msg;
 	printf("SubSend sending message to %d.\n", addr);
-	call Timer.startOneShot(1000);
+	signal AMSend.sendDone(msgPtr, SUCCESS);
+	//call Timer.startOneShot(50);
 	return SUCCESS;
     }
 
