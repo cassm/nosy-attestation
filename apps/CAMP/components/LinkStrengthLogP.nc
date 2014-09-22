@@ -33,6 +33,26 @@ implementation {
 	return src;
     }
 
+    command uint8_t LinkStrengthLog.getLqiDiff(message_t *msg) {
+	message_metadata_t *metadataPtr;
+	message_header_t *headerPtr;
+	uint8_t src;
+	uint8_t lqi;
+	uint8_t result;
+	headerPtr = (message_header_t*) msg->header;
+	metadataPtr = (message_metadata_t*) msg->metadata;
+
+	// extract source and link quality indicator from message
+	src = headerPtr->cc2420.src;
+	lqi = metadataPtr->cc2420.lqi; 
+	
+	result = strengths[src] - lqi;
+
+	if ( result < 0 )
+	    return -1 * result;
+	return result;
+    }
+
     command uint8_t LinkStrengthLog.getLqi(uint8_t node) {
 	return strengths[node];
     }

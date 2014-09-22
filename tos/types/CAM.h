@@ -5,33 +5,36 @@
 
 enum { CAMMSG = 97,
        TESTMSG = 98,
+       LINKVALMSG = 99,
        MAX_PAYLOAD = (TOSH_DATA_LENGTH - 13),
        CAM_TIMEOUT = 50,
        CAM_RETRIES = 3,
 
+       UNKNOWN = 0,
+       PERMITTED = 1,
+       FORBIDDEN = 2,
+       INVALID = 3,
+
        CAM_QUEUE_SIZE = 10,
        CAM_MAX_RETRIES = 3,
+
+       LQI_DIFF_THRESHOLD = 25,
+
+       MAX_NETWORK_SIZE = 10,
 
        ROUTING_DELAY = 80,
        CAM_FWD_TIMEOUT = 1250,
        CAM_EAVESDROPPING_TIMEOUT = 1500,
        SIGFLASH_DURATION = 1000
+
+
 };
 
-bool inChronologicalOrder(uint32_t t1, uint32_t t2) {
-    // if a time is more than 0.75*2^32 ms later, assume instead that it is less than 0.25*2^32 ms 
-    // earlier. This deals with intervals which span a wrap.
-
-    // find earliest time, accounting for wraps
-
-
-    uint32_t wrapThreshold = -1;
-    wrapThreshold /= 4;
-  
-    return ( (t1 < t2 && (t1 - t2 > wrapThreshold * 3))
-	     || t1 - t2 > wrapThreshold );
-}
-
+typedef nx_struct link_validation_msg_t {
+    nx_uint8_t src;
+    nx_uint8_t dest;
+    nx_uint8_t status;
+} link_validation_msg_t;
 typedef nx_struct cam_ack_msg_t {
     nx_uint8_t dsn;
     nx_uint8_t status;
@@ -65,6 +68,20 @@ typedef nx_struct testmsg_t {
     nx_uint8_t val1;
     nx_uint32_t val2;
 } testmsg_t;
+
+bool inChronologicalOrder(uint32_t t1, uint32_t t2) {
+    // if a time is more than 0.75*2^32 ms later, assume instead that it is less than 0.25*2^32 ms 
+    // earlier. This deals with intervals which span a wrap.
+
+    // find earliest time, accounting for wraps
+
+
+    uint32_t wrapThreshold = -1;
+    wrapThreshold /= 4;
+  
+    return ( (t1 < t2 && (t1 - t2 > wrapThreshold * 3))
+	     || t1 - t2 > wrapThreshold );
+}
 
 // N.B. - This function only performs correctly on 
 uint32_t checksum_msg(message_t *msg) {

@@ -165,7 +165,7 @@ implementation {
     if (header->type == CAMMSG) {
 	checksummed_msg_t *payload;
 	payload = (checksummed_msg_t*) p_msg->data;
-	payload->checksum = ~checksum_msg(p_msg);
+	payload->checksum = checksum_msg(p_msg);
     }
 #endif
 
