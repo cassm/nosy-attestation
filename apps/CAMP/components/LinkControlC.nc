@@ -5,9 +5,8 @@ configuration LinkControlC {
 implementation {
     components LinkControlP as App,
 
-	// do the camsenderc and camreceiverc
-	new AMSenderC(LINKVALMSG),
-	new AMReceiverC(LINKVALMSG),
+	new CAMSenderC(LINKVALMSG),
+	new CAMReceiverC(LINKVALMSG),
 
 	new LVMsgQueueC() as ValidationQueue,
 	new LVTimedMsgQueueC() as QueryQueue,
@@ -15,8 +14,8 @@ implementation {
 	LocalTimeMilliC as SysTime;
 
     LinkControl = App;
-    App.AMSend->AMSenderC;
-    App.Receive->AMReceiverC;
+    App.AMSend->CAMSenderC;
+    App.Receive->CAMReceiverC;
     App.ValidationQueue -> ValidationQueue;
     App.QueryQueue -> QueryQueue;
     App.Timer -> Timer;

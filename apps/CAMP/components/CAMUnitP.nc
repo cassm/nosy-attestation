@@ -1,7 +1,7 @@
 #include "CAM.h"
 #include "printf.h"
 
-generic module CAMUnitP(am_id_t AMId) {
+module CAMUnitP {
     provides {
 	interface AMSend;
 	interface Receive;
@@ -313,13 +313,6 @@ implementation {
 	printf("Send to %d requested.\n", addr);
 	printfflush();
 
-	payload->type = AMId;
-	payload->len = len;
-	payload->src = TOS_NODE_ID;
-	payload->dest = addr;
-	payload->prev = TOS_NODE_ID;
-	payload->curr = TOS_NODE_ID;
-	payload->next = TOS_NODE_ID;
 	payload->ID = msgID++;
 	payload->retry = 0;
 	
@@ -327,6 +320,8 @@ implementation {
 	    return EBUSY;
 
 	post RoutingTask();
+
+	signal AMSend.sendDone(msg, SUCCESS);
 
 	return SUCCESS;
     }

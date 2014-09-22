@@ -1,6 +1,6 @@
 #include "CAM.h"
 
-generic configuration CAMUnitC(am_id_t AMId) {
+configuration CAMUnitC {
     provides {
 	interface AMSend;
 	interface Receive;
@@ -11,7 +11,7 @@ generic configuration CAMUnitC(am_id_t AMId) {
 }
 
 implementation {
-    components new CAMUnitP(AMId) as App,
+    components CAMUnitP as App,
 	LedsC,
 	LocalTimeMilliC as SysTime,
 

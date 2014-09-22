@@ -4,6 +4,7 @@ module LinkControlTestC {
     uses interface Boot;
     uses interface LinkControl;
     uses interface SplitControl;
+    uses interface StdControl as CAMControl;
     uses interface Timer<TMilli> as Timer;
 }
 implementation {
@@ -11,12 +12,13 @@ implementation {
 
     event void Boot.booted() {
 	i = 0;
+	call CAMControl.start();
 	call SplitControl.start();
     }
     event void SplitControl.stopDone(error_t result) {}
     event void SplitControl.startDone(error_t result) {
 	if ( result == SUCCESS )
-	    if (TOS_NODE_ID != 0)
+	    if (TOS_NODE_ID == 4)
 		signal Timer.fired();
 
 //	    call Timer.startPeriodic(1000);

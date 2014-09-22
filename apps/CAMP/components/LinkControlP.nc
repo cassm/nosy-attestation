@@ -128,19 +128,38 @@ implementation {
     }
 
     event message_t *Receive.receive(message_t* msg, void* payload, uint8_t len) {
-	link_validation_msg_t *payloadPtr = (link_validation_msg_t*) payload;
-
-	printf("Response received!\n");
-	printfflush();
+	link_validation_msg_t *payloadPtr = (link_validation_msg_t*) msg->data;
+	error_t result;
 
 	if (TOS_NODE_ID == 0) {
+	    printf("Responding...\n");
+	    printfflush();
+
 	    respondBuffer = *msg;
 	    payloadPtr = (link_validation_msg_t*) respondBuffer.data;
 	    payloadPtr->status = payloadPtr->dest % 3;
-	    call AMSend.send(1, &respondBuffer, sizeof(link_validation_msg_t)); 
+
+
+	    result = call AMSend.send(4, &respondBuffer, sizeof(link_validation_msg_t));
+
+	    switch(result) {
+	    case EBUSY:
+		printf("ebusy\n");
+		break;
+	    case ENOMEM:
+		printf("enomem\n");
+		break;
+	    case EINVAL:
+		printf("einval\n");
+		break;
+	    }
+	    printfflush();
 	    return msg;
 	}
 	
+	printf("Response received!\n");
+	printfflush();
+
 	call ValidationQueue.removeMsg(msg);
 
 	printf("%d->%d::%d\n", payloadPtr->src, payloadPtr->dest, payloadPtr->status);
