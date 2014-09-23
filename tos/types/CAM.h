@@ -40,37 +40,37 @@ enum { DIGESTMSG = 95,
 };
 
 nx_struct msg_digest_t {
-    uint16_t h_src; 
-    uint8_t h_dest;
-    uint8_t h_len;
+    nx_uint16_t h_src; 
+    nx_uint8_t h_dest;
+    nx_uint8_t h_len;
 
-    uint8_t src;
-    uint8_t prev;
-    uint8_t curr;
-    uint8_t next;
-    uint8_t dest;
+    nx_uint8_t src;
+    nx_uint8_t prev;
+    nx_uint8_t curr;
+    nx_uint8_t next;
+    nx_uint8_t dest;
 
-    uint8_t type;
-    uint8_t id;
-    uint8_t len;
-    uint8_t lqi;
+    nx_uint8_t type;
+    nx_uint8_t id;
+    nx_uint8_t len;
+    nx_uint8_t lqi;
 } msg_digest_t;
 
 nx_struct msg_analytics_t {
     // internal checks
-    bool headers_agree;
-    bool valid_len;
-    bool anomalous_lqi;
-    bool first_time_heard;
-    bool checksum_correct;
+    nx_bool headers_agree;
+    nx_bool valid_len;
+    nx_bool anomalous_lqi;
+    nx_bool first_time_heard;
+    nx_bool checksum_correct;
 
     // buffer checks
-    uint8_t checksum_matches;
-    uint8_t payload_matches;
+    nx_uint8_t checksum_matches;
+    nx_uint8_t payload_matches;
     
     // routing checks
-    uint8_t valid_routing;
-    uint8_t link_status;
+    nx_uint8_t valid_routing;
+    nx_uint8_t link_status;
 } msg_analytics_t;
 
 typedef union msg_report_t {
