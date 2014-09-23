@@ -6,6 +6,7 @@ generic module MsgQueueP() {
 } 
 implementation {
     message_t exitBuffer;
+    message_t inspectionBuffer;
 
     message_t queue[CAM_QUEUE_SIZE];
     bool inUse[CAM_QUEUE_SIZE];
@@ -15,12 +16,47 @@ implementation {
     uint8_t i;
 
     bool sameMsg(message_t *m1, message_t *m2) {
-	checksummed_msg_t *p1 = (checksummed_msg_t*) m1->data;
-	checksummed_msg_t *p2 = (checksummed_msg_t*) m2->data;
-	// if src, ID, and type are the same, we can say the message is the same
-	return (p1->src == p2->src && 
-		p1->ID == p2->ID && 
-		p1->type == p2->type);
+	cc2420_header_t *header1;
+	cc2420_header_t *header2;
+
+	header1 = &((message_header_t*)m1->header)->cc2420;
+	header1 = &((message_header_t*)m2->header)->cc2420;
+
+	switch(header->type) {
+
+	case CAMMSG:
+	    // if src, ID, and type are the same, we can say the message is the same
+	    return ((checksummed_msg_t*)(m1->data)->src == (checksummed_msg_t*)(m2->data)->src 
+		    && (checksummed_msg_t*)(m1->data)->ID == (checksummed_msg_t*)(m2->data)->ID 
+		    && (checksummed_msg_t*)(m1->data)->type == (checksummed_msg_t*)(m2->data)->type);
+
+	case LINKVALMSG:
+	    // if src and dest are the same, msg is the same
+	    return ((link_validation_msg_t*)(m1->data)->src == (link_validation_msg_t*)(m2->data)->src
+		    && (link_validation_msg_t*)(m1->data)->dest == (link_validation_msg_t*)(m2->data)->dest);
+
+	case DIGESTMSG:
+	    // if src, curr, ID and type are the same, we can say it is the same msg
+	    return ((msg_digest_t*)(m1->data)->src == (msg_digest_t*)(m2->data)->src
+		    && (msg_digest_t*)(m1->data)->curr == (msg_digest_t*)(m2->data)->curr
+		    && (msg_digest_t*)(m1->data)->id == (msg_digest_t*)(m2->data)->id
+		    && (msg_digest_t*)(m1->data)->type == (msg_digest_t*)(m2->data)->type);
+
+	case REPORTMSG:
+	    // if src, curr, next, ID and type are the same, we can say it is the same msg
+	    return ((msg_report_t*)(m1->data)->digest->src == (msg_report_t*)(m2->data)->digest->src
+		    && (msg_report_t*)(m1->data)->digest->curr == (msg_report_t*)(m2->data)->digest->curr
+		    && (msg_report_t*)(m1->data)->digest->next == (msg_report_t*)(m2->data)->digest->next
+		    && (msg_report_t*)(m1->data)->digest->id == (msg_report_t*)(m2->data)->digest->id
+		    && (msg_report_t*)(m1->data)->digest->type == (msg_report_t*)(m2->data)->digest->type);
+
+	case default:
+	    // default to src, dest, type, and identifier
+	    return (header1->src == header2->src 
+		    && header1->dest == header2->dest
+		    && header1->type == header2->type
+		    && header1->dsn == header2->dsn);	 
+	}   
     }
 
     int findMsg(message_t *key) {
@@ -98,6 +134,18 @@ implementation {
 	    return &queue[result];
 	}
     }	
+
+    // inspects a message in the queue, if it is present
+    command message_t *MsgQueue.inspectMsg(message_t *msg) {
+	int result = findMsg(msg);
+	if ( result < 0 ) {
+	    return NULL;
+	}
+	else {
+	    inspectionBuffer = queue[i];
+	    return &exitBuffer;
+	}
+    }
 
     command error_t MsgQueue.push(message_t *item) {
 	int8_t slot = getEmptySlot();

@@ -46,4 +46,28 @@ implementation {
 	post findRoute();
 	return SUCCESS;
     }
+
+    command uint8_t RouteFinder.checkRouting(checksummed_msg_t *payload) {
+	if ( payload->src < payload->dest ) {
+	    if ( payload->next < payload->curr )
+		return UPSTREAM;
+	    else if ( payload->next > payload->curr )
+		return GOOD;
+	    else
+		return NONOPTIMAL;
+	}
+	else if ( payload->src > payload->dest ) {
+	    if ( payload->next > payload->curr )
+		return UPSTREAM;
+	    else if ( payload->next < payload->curr )
+		return GOOD;
+	    else
+		return NONOPTIMAL;
+	}
+	else {
+	    if ( payload->next == payload->curr ) 
+		return GOOD;
+	    else
+		return NONOPTIMAL;
+	}
 }

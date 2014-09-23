@@ -9,6 +9,7 @@ module CAMUnitP {
     }
     uses {
 	interface AMSend as SubSend;
+	interface AMSend as ReportSend;
 	interface Receive as SubReceive;
 	interface Receive as Snoop;
 	interface SplitControl as AMControl;
@@ -20,9 +21,12 @@ module CAMUnitP {
 	interface MsgQueue as SendingQueue;
 	interface MsgQueue as HeardQueue;
 	interface MsgQueue as ReceivedQueue;
+	interface MsgQueue as ReportingQueue;
 	interface TimedMsgQueue as ListeningQueue;
 	interface TimedMsgQueue as TimeoutQueue;
 
+	interface LinkStrengthLog;
+	interface LinkControl;
 	interface Random;
 	interface RouteFinder;
 	interface LocalTime<TMilli> as SysTime;
@@ -34,6 +38,7 @@ implementation {
 
     bool routingBusy = FALSE;
     bool sendingBusy = FALSE;
+    bool reportingBusy = FALSE;
 
     message_t routingBuffer;
     message_t sendingBuffer;
@@ -43,6 +48,9 @@ implementation {
     message_t heardBuffer;
     message_t compareBuffer;
     message_t timeoutBuffer;
+    message_t digestBuffer;
+    message_t analysisBuffer;
+    message_t reportBuffer;
 
     command error_t StdControl.start() {
 	exitBufferPtr = &exitBuffer;
@@ -55,6 +63,142 @@ implementation {
 	call AMControl.start();
 	return SUCCESS;	
     }
+
+    error_t buildDigest(message_t* target, message_t *output) {
+        cc2420_header_t *header;
+	checksummed_msg_t *payload;
+	msg_digest_t *digest;
+
+	header = &((message_header_t*)target->header)->cc2420;
+	payload = (checksummed_msg_t*) target->data;
+	digest = (msg_digest_t*) output->data;
+
+	digest->h_src = header->src;
+	digest->h_dest = header->dest;
+	digest->h_len = header->len;
+
+	digest->src = payload->src;
+	digest->prev = payload->prev;
+	digest->curr = payload->curr;
+	digest->next = payload->next;
+	digest->dest = payload->dest;
+
+	digest->type = payload->type;
+	digest->id = payload->ID;
+	digest->len = payload->len;
+	digest->lqi = header->lqi;
+
+	// manually set header type on output
+	header = &((message_header_t*)output->header)->cc2420;
+	header->type = DIGESTMSG;
+
+	return SUCCESS; 
+    }
+
+    error_t buildReport(message_t *target, message_t *output) {	
+        cc2420_header_t *header;
+	checksummed_msg_t *payload;
+	message_t *bufferedMsg;
+	checksummed_msg_t* bufferedPayload;
+	
+	msg_report_t *report = (msg_report_t*) output->data;
+	payload = (checksummed_msg_t*) target->data;
+
+	buildDigest(target, &digestBuffer);
+
+	// ================ INTERNAL CONSISTENCY CHECKS ================
+
+	// copy digest into report
+	memcpy(report->digest, digestBuffer.data, sizeof(msg_digest_t));
+	
+	// check AM header against CAM header
+	report->analytics.headers_agree = ( report->digest.h_src == report->digest.curr
+					    && report->digest.h_dest == report->digest.next );
+	
+	// sanity check the lengths in the AM and CAM headers
+	report->analytics.valid_len = ( report->digest.h_len <= TOSH_DATA_LENGTH
+					&& report->digest.len <= MAX_PAYLOAD );
+
+	// check whether the LQI of the received message is within the bounds of what we would expect
+	report->analytics.anomalous_lqi = ( LinkStrengthLog.getLqiDiff(target) >= LQI_DIFF_THRESHOLD );
+	
+	// see if we have heard from this mote before
+	report->analytics.first_time_heard = ( LinkStrengthLog.getLqi(target) == 0 );
+	
+	// see if the checksum is valid
+	report->analytics.checksum_correct = ( payload->checksum == checksum_msg(target) );
+
+	// ===================== CONTINUITY CHECKS =====================
+
+	// perform the following checks if the message is being listened for
+	bufferedMsg = ListenQueue.inspectMsg(target);
+	if ( bufferedMsg != NULL ) {
+	    bufferedPayload = (checksummed_msg_t*) bufferedMsg->data;
+	    
+	    // see if checksum matches buffered checksum
+	    if ( payload->checksum == bufferedPayload->checksum )
+		report->analytics.checksum_matches = GOOD;
+	    else
+		report->analytics.checksum_matches = BAD;
+
+	    // see if payloads are the same
+	    if ( memcmp(&(payload->data), &(bufferedPayload->data), MAX_PAYLOAD) )
+		report->analytics.payload_matches = BAD;
+	    else
+		report->analytics.payload_matches = GOOD;
+	}
+
+	// otherwise, set both values to UNKNOWN
+	else {
+	    report->analytics.checksum_matches = UNKNOWN;
+	    report->analytics.payload_matches = UNKNOWN;
+	}
+
+	// ====================== ROUTING CHECKS =======================
+
+	// check routing against cached routing information
+	report->analytics.valid_routing = RouteFinder.checkRouting(payload);
+
+	// check link validity against cached link permissions
+	report->analytics.link_status = LinkControl.isPermitted(payload->curr, payload->dest);
+
+        /*
+	    if ( newpayload->curr == storedPayload->curr && newPayload->ID == storedPayload->ID ) {
+		// message is a retry
+		
+		if ( storedPayload->retry == CAM_MAX_RETRIES ) {
+		    // message should be a reroute
+
+		    // expect next node to be different
+		    if ( storedPayload->next == newPayload->next ) {
+			// do some kind of report
+		    }
+		}
+		else {
+		    // message should be a retry
+		    if ( newPayload->retry != storedPayload->retry + 1 ) {
+			// do some kind of report
+		    }
+
+		    if ( storedPayload->next != newPayload->next ) {
+			// do some kind of report
+		    }
+		}
+	    }
+
+	    else {
+		// expect forward. do the rest of the checking here
+	    }
+	*/
+
+	// manually set header type on output
+	header = &((message_header_t*)output->header)->cc2420;
+	header->type = REPORTMSG;
+
+	return SUCCESS; 
+    }
+
+    
 
     event void AMControl.startDone(error_t err) {
 	if (err != SUCCESS) {
@@ -183,38 +327,6 @@ implementation {
 
 	    newPayload = (checksummed_msg_t*) heardBuffer.data;
 	    storedPayload = (checksummed_msg_t*) compareBuffer.data;
-
-	    // TODO: add checking
-	    // TODO: add rangefinding
-	    // TODO: add reporting
-	    /*
-	    if ( newpayload->curr == storedPayload->curr && newPayload->ID == storedPayload->ID ) {
-		// message is a retry
-		
-		if ( storedPayload->retry == CAM_MAX_RETRIES ) {
-		    // message should be a reroute
-
-		    // expect next node to be different
-		    if ( storedPayload->next == newPayload->next ) {
-			// do some kind of report
-		    }
-		}
-		else {
-		    // message should be a retry
-		    if ( newPayload->retry != storedPayload->retry + 1 ) {
-			// do some kind of report
-		    }
-
-		    if ( storedPayload->next != newPayload->next ) {
-			// do some kind of report
-		    }
-		}
-	    }
-
-	    else {
-		// expect forward. do the rest of the checking here
-	    }
-	    */
 	}
 	
 	call ListeningQueue.insert(&heardBuffer, CAM_EAVESDROPPING_TIMEOUT + call SysTime.get() );
@@ -228,7 +340,7 @@ implementation {
 	    return;
 
 	timeoutBuffer = *call TimeoutQueue.pop();
-	payload = (checksummed_msg_t*) timeoutBuffer.data;
+	payload = (checksummed_msg_t*) timeoutBuffer.data;	
 
 	if ( call HeardQueue.isInQueue(&timeoutBuffer) ) {
 	    // BEWARE naughty shim code 
@@ -256,12 +368,15 @@ implementation {
 	    } 
 	}
 
-	// TODO: add reporting
 	else {
+	    // report on msg drop
+	    buildDigest(msg, digestBuffer);
+	    call ReportingQueue.push(digesttBuffer);
+	    post ReportingTask();
+
 	    printf("Send from %d to %d failed.\n", payload->curr, payload->next);
 	    printfflush();
 	}
-	
     }
 
     task void ReceivedTask() {
@@ -299,14 +414,65 @@ implementation {
 	    post ReceivedTask();
     }
 
+    task void ReportingTask() {
+	cc2420_header_t *header;
+
+	if ( call ReportingQueue.isEmpty() )
+	    return;
+
+	if ( reportingBusy )
+	    return;
+	reportingBusy = TRUE;
+
+	reportingBuffer = ReportingQueue.pop();
+	header = &((message_header_t*)reportingBuffer->header)->cc2420;
+	
+	// report is for a dropped message
+	if ( header->type == DIGESTMSG ) {
+	    call ReportSend.send(BASE_STATION_ID, &reportingBuffer, sizeof(msg_digest_t));
+	    return;
+	}
+
+	// report is for a snooped or received message
+	else if ( header->type == REPORTMSG ) {
+
+	    // TODO: implement filtering here
+	    if ( FALSE ) {
+		call ReportSend.send(BASE_STATION_ID, &reportingBuffer, sizeof(msg_report_t));
+		return;
+	    }
+	}
+
+	// if control reaches here, no report has been sent
+	reportingBusy = FALSE;
+
+	if ( !call ReportingQueue.isEmpty() )
+	    post ReportingTask;
+    }
+
+    event void ReportSend.sendDone(message_t *msg, error_t error) {
+	if ( error == SUCCESS )
+	    call ReportSend.send(BASE_STATION_ID, &reportingBuffer, sizeof(msg_report_t));
+	else {
+	    reportingBusy = FALSE;
+	    if ( !call ReportingQueue.isEmpty() )
+		post ReportingTask;
+	}
+    }
+
     command error_t AMSend.send(am_addr_t addr, message_t *msg, uint8_t len) {
 	checksummed_msg_t *payload;
+        cc2420_header_t *header;
 
 	call Leds.set(0x7);
 	call LightTimer.startOneShot(250);
 
 	if ( call RoutingQueue.isFull() )
 	    return EBUSY;
+
+	// manually set header type
+	header = &((message_header_t*)msg->header)->cc2420;
+	header->type = CAMMSG;
 
 	payload = (checksummed_msg_t*) msg->data;
 
@@ -316,6 +482,8 @@ implementation {
 	payload->ID = msgID++;
 	payload->retry = 0;
 	
+	payload->checksum = checksum_msg(msg);
+
 	if ( call RoutingQueue.push(msg) == ENOMEM )
 	    return EBUSY;
 
@@ -384,6 +552,11 @@ implementation {
 	call Leds.set(0x3);
 	call LightTimer.startOneShot(250);
 
+	// report on msg
+	buildReport(msg, analysBuffer);
+	call ReportingQueue.push(analysisBuffer);
+	post ReportingTask();
+
 	// don't listen for this any more
 	call ListeningQueue.removeMsg(msg);
 	post ListeningTask();
@@ -438,11 +611,16 @@ implementation {
 //	printf("Snoop.receive\n");
 //	printPacket(msg);
 
-	// TODO: what to do if quue is full?
+	// TODO: what to do if queue is full?
 	call Leds.set(0x1);
 	call LightTimer.startOneShot(250);
 
 	payloadPtr = (checksummed_msg_t*) payload;
+
+	// report on msg
+	buildReport(msg, analysisBuffer);
+	call ReportingQueue.push(analysisBuffer);
+	post ReportingTask();
 
 	// process acks
 	if ( payloadPtr->dest == payloadPtr->curr ) {

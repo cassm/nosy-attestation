@@ -8,8 +8,8 @@ implementation {
 	new CAMSenderC(LINKVALMSG),
 	new CAMReceiverC(LINKVALMSG),
 
-	new LVMsgQueueC() as ValidationQueue,
-	new LVTimedMsgQueueC() as QueryQueue,
+	new MsgQueueC() as ValidationQueue,
+	new TimedMsgQueueC() as QueryQueue,
         new TimerMilliC() as Timer,
 	LocalTimeMilliC as SysTime;
 

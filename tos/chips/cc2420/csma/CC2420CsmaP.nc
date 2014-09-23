@@ -160,15 +160,6 @@ implementation {
     ccaOn = TRUE;
     signal RadioBackoff.requestCca(m_msg);
 
-#ifdef CAM_ENABLED
-    // checksum message here if message is CAM type
-    if (header->type == CAMMSG) {
-	checksummed_msg_t *payload;
-	payload = (checksummed_msg_t*) p_msg->data;
-	payload->checksum = checksum_msg(p_msg);
-    }
-#endif
-
     call CC2420Transmit.send( m_msg, ccaOn );
     return SUCCESS;
 

@@ -9,6 +9,8 @@ interface TimedMsgQueue {
     // check whether a message is already in the queue
     command bool isInQueue(message_t *msg);
 
+    command message_t *inspectMsg(message_t *msg);
+
     // returns a pointer to the message with the earliest alarm time
     command message_t *pop();
 

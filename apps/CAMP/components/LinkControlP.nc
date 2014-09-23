@@ -47,6 +47,8 @@ implementation {
 
     task void ValidationTask() {
 	link_validation_msg_t *payload;
+	cc2420_header_t *header;
+
 	printf("Validationtask\n");
 	printfflush();
 
@@ -58,6 +60,8 @@ implementation {
 	    return;
 
 	validationBuffer = *call ValidationQueue.pop();
+	header = &((message_header_t*)validationBuffer->header)->cc2420;
+	header->type = LINKVALMSG;
 	payload = call AMSend.getPayload(&validationBuffer, sizeof(link_validation_msg_t));        
 
 	if ( payload->src > MAX_NETWORK_SIZE || payload->dest > MAX_NETWORK_SIZE ) {
@@ -110,10 +114,9 @@ implementation {
 
     event void Timer.fired() {
 	link_validation_msg_t *payload;
+
 	printf("Timer fired.\n");
 	printfflush();
-
-
 
 	if ( call QueryQueue.isEmpty() )
 	    return;

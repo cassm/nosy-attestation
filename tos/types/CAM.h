@@ -3,17 +3,26 @@
 
 #include "message.h"
 
-enum { CAMMSG = 97,
+enum { DIGESTMSG = 95,
+       REPORTMSG = 96,
+       CAMMSG = 97,
        TESTMSG = 98,
        LINKVALMSG = 99,
        MAX_PAYLOAD = (TOSH_DATA_LENGTH - 13),
        CAM_TIMEOUT = 50,
        CAM_RETRIES = 3,
 
+       BASE_STATION_ID = 0,
+
        UNKNOWN = 0,
        PERMITTED = 1,
        FORBIDDEN = 2,
        INVALID = 3,
+       GOOD = 4,
+       BAD = 5,
+       NONOPTIMAL = 6,
+       UPSTREAM = 7,
+       DROPPED = 8,
 
        CAM_QUEUE_SIZE = 10,
        CAM_MAX_RETRIES = 3,
@@ -30,11 +39,51 @@ enum { CAMMSG = 97,
 
 };
 
+nx_struct msg_digest_t {
+    uint16_t h_src; 
+    uint8_t h_dest;
+    uint8_t h_len;
+
+    uint8_t src;
+    uint8_t prev;
+    uint8_t curr;
+    uint8_t next;
+    uint8_t dest;
+
+    uint8_t type;
+    uint8_t id;
+    uint8_t len;
+    uint8_t lqi;
+} msg_digest_t;
+
+nx_struct msg_analytics_t {
+    // internal checks
+    bool headers_agree;
+    bool valid_len;
+    bool anomalous_lqi;
+    bool first_time_heard;
+    bool checksum_correct;
+
+    // buffer checks
+    uint8_t checksum_matches;
+    uint8_t payload_matches;
+    
+    // routing checks
+    uint8_t valid_routing;
+    uint8_t link_status;
+} msg_analytics_t;
+
+typedef union msg_report_t {
+    msg_digest_t digest;
+    msg_analysis_t analytics;
+}
+
 typedef nx_struct link_validation_msg_t {
     nx_uint8_t src;
     nx_uint8_t dest;
     nx_uint8_t status;
 } link_validation_msg_t;
+
 typedef nx_struct cam_ack_msg_t {
     nx_uint8_t dsn;
     nx_uint8_t status;
@@ -86,7 +135,7 @@ bool inChronologicalOrder(uint32_t t1, uint32_t t2) {
 // N.B. - This function only performs correctly on 
 uint32_t checksum_msg(message_t *msg) {
     uint32_t checksum = 0;
-    uint8_t i;
+
     checksummed_msg_t *payload;
 
     // TODO: cut down checksum to only parity-checked parts of message

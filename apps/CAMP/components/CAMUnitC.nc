@@ -22,6 +22,7 @@ implementation {
 	new MsgQueueC() as SendingQueue,
 	new MsgQueueC() as HeardQueue,
 	new MsgQueueC() as ReceivedQueue,
+	new MsgQueueC() as ReportingQueue,
 	new TimedMsgQueueC() as ListeningQueue,
 	new TimedMsgQueueC() as TimeoutQueue,
 
@@ -31,6 +32,9 @@ implementation {
 	//ReceiveStubC as SubReceive,
 	new AMSnooperC(CAMMSG),
         ActiveMessageC,
+
+	LinkStrengthLogC as LinkStrengthLog,
+	LinkControlC as LinkControl,
 
 	new AODVStubC(),
 	PrintfC,
@@ -44,11 +48,16 @@ implementation {
     App.SubSend -> SubSend;
     App.SubReceive -> SubReceive;
     App.AMControl -> ActiveMessageC;
+    App.ReportSend -> App.AMSend;
+
+    App.LinkStrengthLog -> LinkStrengthLog;
+    App.LinkControl -> LinkControl;
 
     App.RoutingQueue->RoutingQueue;
     App.SendingQueue->SendingQueue;
     App.HeardQueue->HeardQueue;
     App.ReceivedQueue->ReceivedQueue;
+    App.ReportingQueue->ReportingQueue;
     App.ListeningQueue->ListeningQueue;
     App.TimeoutQueue->TimeoutQueue;
 
