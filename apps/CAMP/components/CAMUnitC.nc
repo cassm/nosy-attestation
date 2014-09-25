@@ -23,6 +23,7 @@ implementation {
 	new MsgQueueC() as HeardQueue,
 	new MsgQueueC() as ReceivedQueue,
 	new MsgQueueC() as ReportingQueue,
+	new MsgQueueC() as ValidationQueue,
 	new TimedMsgQueueC() as ListeningQueue,
 	new TimedMsgQueueC() as TimeoutQueue,
 
@@ -60,6 +61,7 @@ implementation {
     App.ReportingQueue->ReportingQueue;
     App.ListeningQueue->ListeningQueue;
     App.TimeoutQueue->TimeoutQueue;
+    App.ValidationQueue->ValidationQueue;
 
     App.ListeningTimer->ListeningTimer;
     App.LightTimer->LightTimer;

@@ -22,6 +22,7 @@ module CAMUnitP {
 	interface MsgQueue as HeardQueue;
 	interface MsgQueue as ReceivedQueue;
 	interface MsgQueue as ReportingQueue;
+	interface MsgQueue as ValidationQueue;
 	interface TimedMsgQueue as ListeningQueue;
 	interface TimedMsgQueue as TimeoutQueue;
 
@@ -39,6 +40,7 @@ implementation {
     bool routingBusy = FALSE;
     bool sendingBusy = FALSE;
     bool reportingBusy = FALSE;
+    bool validationBusy = FALSE;
 
     message_t routingBuffer;
     message_t sendingBuffer;
@@ -50,7 +52,10 @@ implementation {
     message_t timeoutBuffer;
     message_t digestBuffer;
     message_t analysisBuffer;
-    message_t reportBuffer;
+    message_t reportingBuffer;
+    message_t validationBuffer;
+
+    task void ReportingTask();
 
     command error_t StdControl.start() {
 	exitBufferPtr = &exitBuffer;
@@ -75,7 +80,7 @@ implementation {
 
 	digest->h_src = header->src;
 	digest->h_dest = header->dest;
-	digest->h_len = header->len;
+	digest->h_len = header->length;
 
 	digest->src = payload->src;
 	digest->prev = payload->prev;
@@ -86,7 +91,6 @@ implementation {
 	digest->type = payload->type;
 	digest->id = payload->ID;
 	digest->len = payload->len;
-	digest->lqi = header->lqi;
 
 	// manually set header type on output
 	header = &((message_header_t*)output->header)->cc2420;
@@ -97,6 +101,8 @@ implementation {
 
     error_t buildReport(message_t *target, message_t *output) {	
         cc2420_header_t *header;
+	cc2420_metadata_t *metadataPtr;
+
 	checksummed_msg_t *payload;
 	message_t *bufferedMsg;
 	checksummed_msg_t* bufferedPayload;
@@ -104,12 +110,17 @@ implementation {
 	msg_report_t *report = (msg_report_t*) output->data;
 	payload = (checksummed_msg_t*) target->data;
 
+	metadataPtr = &((message_metadata_t*)target->metadata)->cc2420;
+
 	buildDigest(target, &digestBuffer);
 
 	// ================ INTERNAL CONSISTENCY CHECKS ================
 
+	// get lqi
+	report->analytics.lqi = metadataPtr->lqi;
+
 	// copy digest into report
-	memcpy(report->digest, digestBuffer.data, sizeof(msg_digest_t));
+	memcpy(&report->digest, &digestBuffer.data, sizeof(msg_digest_t));
 	
 	// check AM header against CAM header
 	report->analytics.headers_agree = ( report->digest.h_src == report->digest.curr
@@ -120,10 +131,10 @@ implementation {
 					&& report->digest.len <= MAX_PAYLOAD );
 
 	// check whether the LQI of the received message is within the bounds of what we would expect
-	report->analytics.anomalous_lqi = ( LinkStrengthLog.getLqiDiff(target) >= LQI_DIFF_THRESHOLD );
-	
+	report->analytics.anomalous_lqi = ( call LinkStrengthLog.getLqiDiff(target) >= LQI_DIFF_THRESHOLD );
+    
 	// see if we have heard from this mote before
-	report->analytics.first_time_heard = ( LinkStrengthLog.getLqi(target) == 0 );
+	report->analytics.first_time_heard = ( call LinkStrengthLog.getLqi(payload->curr) == 0 );
 	
 	// see if the checksum is valid
 	report->analytics.checksum_correct = ( payload->checksum == checksum_msg(target) );
@@ -131,7 +142,7 @@ implementation {
 	// ===================== CONTINUITY CHECKS =====================
 
 	// perform the following checks if the message is being listened for
-	bufferedMsg = ListenQueue.inspectMsg(target);
+	bufferedMsg = call ListeningQueue.inspectMsg(target);
 	if ( bufferedMsg != NULL ) {
 	    bufferedPayload = (checksummed_msg_t*) bufferedMsg->data;
 	    
@@ -157,10 +168,10 @@ implementation {
 	// ====================== ROUTING CHECKS =======================
 
 	// check routing against cached routing information
-	report->analytics.valid_routing = RouteFinder.checkRouting(payload);
+	report->analytics.valid_routing = call RouteFinder.checkRouting(payload);
 
 	// check link validity against cached link permissions
-	report->analytics.link_status = LinkControl.isPermitted(payload->curr, payload->dest);
+	report->analytics.link_status = call LinkControl.isPermitted(payload->curr, payload->dest);
 
         /*
 	    if ( newpayload->curr == storedPayload->curr && newPayload->ID == storedPayload->ID ) {
@@ -314,8 +325,8 @@ implementation {
     }
 
     task void HeardTask() {
-	checksummed_msg_t *newPayload;
-	checksummed_msg_t *storedPayload;
+	checksummed_msg_t *payload;
+	uint8_t linkStatus;
 
 	if ( call HeardQueue.isEmpty() )
 	    return;
@@ -324,13 +335,25 @@ implementation {
 
 	if ( call ListeningQueue.isInQueue(&heardBuffer) ) {
 	    compareBuffer = *call ListeningQueue.removeMsg(&heardBuffer);
-
-	    newPayload = (checksummed_msg_t*) heardBuffer.data;
-	    storedPayload = (checksummed_msg_t*) compareBuffer.data;
 	}
-	
-	call ListeningQueue.insert(&heardBuffer, CAM_EAVESDROPPING_TIMEOUT + call SysTime.get() );
-	post ListeningTask();	
+
+	payload = (checksummed_msg_t*) heardBuffer.data;
+
+	linkStatus = call LinkControl.isPermitted(payload->curr, payload->next);
+
+        // TODO: deal better with link permissions log desynchronisation
+
+	// expect permitted links to be forwarded immediately
+	if ( linkStatus == PERMITTED  ) {
+	    call ListeningQueue.insert(&heardBuffer, CAM_EAVESDROPPING_TIMEOUT + call SysTime.get() );
+	    post ListeningTask();
+	}
+
+	// expect unknown links to take a while
+	if ( linkStatus == UNKNOWN && FWD_UNKNOWN_LINKS ) {
+	    call ListeningQueue.insert(&heardBuffer, LINK_VALIDATION_TIMEOUT + CAM_FWD_TIMEOUT + call SysTime.get() );
+	    post ListeningTask();
+	}
     }
 
     task void TimeoutTask() {
@@ -370,8 +393,8 @@ implementation {
 
 	else {
 	    // report on msg drop
-	    buildDigest(msg, digestBuffer);
-	    call ReportingQueue.push(digesttBuffer);
+	    buildDigest(&timeoutBuffer, &digestBuffer);
+	    call ReportingQueue.push(&digestBuffer);
 	    post ReportingTask();
 
 	    printf("Send from %d to %d failed.\n", payload->curr, payload->next);
@@ -424,8 +447,8 @@ implementation {
 	    return;
 	reportingBusy = TRUE;
 
-	reportingBuffer = ReportingQueue.pop();
-	header = &((message_header_t*)reportingBuffer->header)->cc2420;
+	reportingBuffer = *call ReportingQueue.pop();
+	header = &((message_header_t*)reportingBuffer.header)->cc2420;
 	
 	// report is for a dropped message
 	if ( header->type == DIGESTMSG ) {
@@ -447,7 +470,7 @@ implementation {
 	reportingBusy = FALSE;
 
 	if ( !call ReportingQueue.isEmpty() )
-	    post ReportingTask;
+	    post ReportingTask();
     }
 
     event void ReportSend.sendDone(message_t *msg, error_t error) {
@@ -456,8 +479,54 @@ implementation {
 	else {
 	    reportingBusy = FALSE;
 	    if ( !call ReportingQueue.isEmpty() )
-		post ReportingTask;
+		post ReportingTask();
 	}
+    }
+
+    task void validationTask() {
+	checksummed_msg_t *payload;
+
+	if ( call ValidationQueue.isEmpty() )
+	    return;
+	if ( validationBusy ) 
+	    return;
+	validationBusy = TRUE;
+
+	validationBuffer = *call ValidationQueue.pop();
+	payload = (checksummed_msg_t*) validationBuffer.data;
+
+	call LinkControl.ValidateLink(payload->curr, payload->next);
+    }
+
+    event void LinkControl.ValidationDone( uint8_t src, uint8_t dest, uint8_t status ) {
+	checksummed_msg_t *payloadPtr = (checksummed_msg_t*) validationBuffer.data;
+
+	if ( status == PERMITTED || ( status == UNKNOWN && FWD_UNKNOWN_LINKS ) ) {
+	    // TODO: What to do if queue is full?
+	    // if the message is for this node, receive it
+	    if ( payloadPtr->dest == TOS_NODE_ID ) {
+		call ReceivedQueue.push(&validationBuffer);
+		post ReceivedTask();
+		return;
+	    }
+
+	    // if message is an ack, process it
+	    if ( payloadPtr->dest == payloadPtr->curr ) {
+		call ListeningQueue.removeMsg(&validationBuffer);
+		post ListeningTask();
+		return;
+	    }
+	
+	    printf("Forwarding...\n");
+	    printfflush();
+
+	    // otherwise, forward it
+     
+	    // TODO: what to do if queue is full?
+	    call RoutingQueue.push(&validationBuffer);
+	    post RoutingTask();
+	}
+	post validationTask();
     }
 
     command error_t AMSend.send(am_addr_t addr, message_t *msg, uint8_t len) {
@@ -544,6 +613,7 @@ implementation {
 
     event message_t *SubReceive.receive(message_t *msg, void *payload, uint8_t len) {
 	checksummed_msg_t *payloadPtr;
+	uint8_t linkStatus;
 
 	payloadPtr = (checksummed_msg_t*) msg->data;
 
@@ -553,39 +623,53 @@ implementation {
 	call LightTimer.startOneShot(250);
 
 	// report on msg
-	buildReport(msg, analysBuffer);
-	call ReportingQueue.push(analysisBuffer);
+	// TODO: block dangerous messages here
+	buildReport(msg, &analysisBuffer);
+	call ReportingQueue.push(&analysisBuffer);
 	post ReportingTask();
 
 	// don't listen for this any more
 	call ListeningQueue.removeMsg(msg);
 	post ListeningTask();
 
-	// TODO: What to do if queue is full?
-	// if the message is for this node, receive it
-	if ( payloadPtr->dest == TOS_NODE_ID ) {
-	    call ReceivedQueue.push(msg);
-	    post ReceivedTask();
-	    return msg;
-	}
+	linkStatus = call LinkControl.isPermitted(payloadPtr->curr, payloadPtr->next);
 
-	// if message is an ack, process it
-	if ( payloadPtr->dest == payloadPtr->curr ) {
-	    call ListeningQueue.removeMsg(msg);
-	    post ListeningTask();
-	    return msg;
-	}
+	if (linkStatus == PERMITTED) {
+	    // TODO: What to do if queue is full?
+	    // if the message is for this node, receive it
+	    if ( payloadPtr->dest == TOS_NODE_ID ) {
+		call ReceivedQueue.push(msg);
+		post ReceivedTask();
+		return msg;
+	    }
+
+	    // if message is an ack, process it
+	    if ( payloadPtr->dest == payloadPtr->curr ) {
+		call ListeningQueue.removeMsg(msg);
+		post ListeningTask();
+		return msg;
+	    }
 	
-	printf("Forwarding...\n");
-	printfflush();
+	    printf("Forwarding...\n");
+	    printfflush();
 
-	// otherwise, forward it
+	    // otherwise, forward it
      
-	// TODO: what to do if queue is full?
-	call RoutingQueue.push(msg);
-	post RoutingTask();
+	    // TODO: what to do if queue is full?
+	    call RoutingQueue.push(msg);
+	    post RoutingTask();
+	    return msg;
+	}
+
+	else if ( linkStatus == UNKNOWN ) {
+	    call ValidationQueue.push(msg);
+	    post validationTask();
+	    return msg;
+	}
+
+	// if link status is forbidden, drop packet.
 	return msg;
-    }
+    }	    
 
     event void ListeningTimer.fired() {
 	uint32_t alarmTime;
@@ -618,8 +702,8 @@ implementation {
 	payloadPtr = (checksummed_msg_t*) payload;
 
 	// report on msg
-	buildReport(msg, analysisBuffer);
-	call ReportingQueue.push(analysisBuffer);
+	buildReport(msg, &analysisBuffer);
+	call ReportingQueue.push(&analysisBuffer);
 	post ReportingTask();
 
 	// process acks

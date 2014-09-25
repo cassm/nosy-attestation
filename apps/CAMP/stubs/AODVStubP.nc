@@ -70,4 +70,5 @@ implementation {
 	    else
 		return NONOPTIMAL;
 	}
+    }
 }

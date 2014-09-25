@@ -15,6 +15,7 @@ implementation {
     bool initialised = FALSE;
     uint8_t i;
 
+    // Message sameness classifier. Type sensitive among cam, link validation, digest, and report msgs.
     bool sameMsg(message_t *m1, message_t *m2) {
 	cc2420_header_t *header1;
 	cc2420_header_t *header2;
@@ -22,35 +23,35 @@ implementation {
 	header1 = &((message_header_t*)m1->header)->cc2420;
 	header1 = &((message_header_t*)m2->header)->cc2420;
 
-	switch(header->type) {
+	switch(header1->type) {
 
 	case CAMMSG:
 	    // if src, ID, and type are the same, we can say the message is the same
-	    return ((checksummed_msg_t*)(m1->data)->src == (checksummed_msg_t*)(m2->data)->src 
-		    && (checksummed_msg_t*)(m1->data)->ID == (checksummed_msg_t*)(m2->data)->ID 
-		    && (checksummed_msg_t*)(m1->data)->type == (checksummed_msg_t*)(m2->data)->type);
+	    return (((checksummed_msg_t*)(m1->data))->src == ((checksummed_msg_t*)(m2->data))->src 
+		    && ((checksummed_msg_t*)(m1->data))->ID == ((checksummed_msg_t*)(m2->data))->ID 
+		    && ((checksummed_msg_t*)(m1->data))->type == ((checksummed_msg_t*)(m2->data))->type);
 
 	case LINKVALMSG:
 	    // if src and dest are the same, msg is the same
-	    return ((link_validation_msg_t*)(m1->data)->src == (link_validation_msg_t*)(m2->data)->src
-		    && (link_validation_msg_t*)(m1->data)->dest == (link_validation_msg_t*)(m2->data)->dest);
+	    return (((link_validation_msg_t*)(m1->data))->src == ((link_validation_msg_t*)(m2->data))->src
+		    && ((link_validation_msg_t*)(m1->data))->dest == ((link_validation_msg_t*)(m2->data))->dest);
 
 	case DIGESTMSG:
 	    // if src, curr, ID and type are the same, we can say it is the same msg
-	    return ((msg_digest_t*)(m1->data)->src == (msg_digest_t*)(m2->data)->src
-		    && (msg_digest_t*)(m1->data)->curr == (msg_digest_t*)(m2->data)->curr
-		    && (msg_digest_t*)(m1->data)->id == (msg_digest_t*)(m2->data)->id
-		    && (msg_digest_t*)(m1->data)->type == (msg_digest_t*)(m2->data)->type);
+	    return (((msg_digest_t*)(m1->data))->src == ((msg_digest_t*)(m2->data))->src
+		    && ((msg_digest_t*)(m1->data))->curr == ((msg_digest_t*)(m2->data))->curr
+		    && ((msg_digest_t*)(m1->data))->id == ((msg_digest_t*)(m2->data))->id
+		    && ((msg_digest_t*)(m1->data))->type == ((msg_digest_t*)(m2->data))->type);
 
 	case REPORTMSG:
 	    // if src, curr, next, ID and type are the same, we can say it is the same msg
-	    return ((msg_report_t*)(m1->data)->digest->src == (msg_report_t*)(m2->data)->digest->src
-		    && (msg_report_t*)(m1->data)->digest->curr == (msg_report_t*)(m2->data)->digest->curr
-		    && (msg_report_t*)(m1->data)->digest->next == (msg_report_t*)(m2->data)->digest->next
-		    && (msg_report_t*)(m1->data)->digest->id == (msg_report_t*)(m2->data)->digest->id
-		    && (msg_report_t*)(m1->data)->digest->type == (msg_report_t*)(m2->data)->digest->type);
+	    return (((msg_report_t*)(m1->data))->digest.src == ((msg_report_t*)(m2->data))->digest.src
+		    && ((msg_report_t*)(m1->data))->digest.curr == ((msg_report_t*)(m2->data))->digest.curr
+		    && ((msg_report_t*)(m1->data))->digest.next == ((msg_report_t*)(m2->data))->digest.next
+		    && ((msg_report_t*)(m1->data))->digest.id == ((msg_report_t*)(m2->data))->digest.id
+		    && ((msg_report_t*)(m1->data))->digest.type == ((msg_report_t*)(m2->data))->digest.type);
 
-	case default:
+	default:
 	    // default to src, dest, type, and identifier
 	    return (header1->src == header2->src 
 		    && header1->dest == header2->dest

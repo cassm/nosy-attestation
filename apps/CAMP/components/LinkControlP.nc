@@ -60,7 +60,7 @@ implementation {
 	    return;
 
 	validationBuffer = *call ValidationQueue.pop();
-	header = &((message_header_t*)validationBuffer->header)->cc2420;
+	header = &((message_header_t*)validationBuffer.header)->cc2420;
 	header->type = LINKVALMSG;
 	payload = call AMSend.getPayload(&validationBuffer, sizeof(link_validation_msg_t));        
 
@@ -100,7 +100,7 @@ implementation {
 	    // TODO: make this deal with large network sizes better
 	    currentTime = call SysTime.get();
 
-	    call QueryQueue.insert(&validationBuffer, currentTime + (2 * CAM_FWD_TIMEOUT * MAX_NETWORK_SIZE));
+	    call QueryQueue.insert(&validationBuffer, currentTime + (LINK_VALIDATION_TIMEOUT));
 
 	    post TimerTask();
 

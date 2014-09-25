@@ -51,13 +51,13 @@ implementation {
 
 	case REPORTMSG:
 	    // if src, curr, next, ID and type are the same, we can say it is the same msg
-	    return (((msg_report_t*)(m1->data))->digest->src == ((msg_report_t*)(m2->data))->digest->src
-		    && ((msg_report_t*)(m1->data))->digest->curr == ((msg_report_t*)(m2->data))->digest->curr
-		    && ((msg_report_t*)(m1->data))->digest->next == ((msg_report_t*)(m2->data))->digest->next
-		    && ((msg_report_t*)(m1->data))->digest->id == ((msg_report_t*)(m2->data))->digest->id
-		    && ((msg_report_t*)(m1->data))->digest->type == ((msg_report_t*)(m2->data))->digest->type);
+	    return (((msg_report_t*)(m1->data))->digest.src == ((msg_report_t*)(m2->data))->digest.src
+		    && ((msg_report_t*)(m1->data))->digest.curr == ((msg_report_t*)(m2->data))->digest.curr
+		    && ((msg_report_t*)(m1->data))->digest.next == ((msg_report_t*)(m2->data))->digest.next
+		    && ((msg_report_t*)(m1->data))->digest.id == ((msg_report_t*)(m2->data))->digest.id
+		    && ((msg_report_t*)(m1->data))->digest.type == ((msg_report_t*)(m2->data))->digest.type);
 
-	case default:
+	default:
 	    // default to src, dest, type, and identifier
 	    return (header1->src == header2->src 
 		    && header1->dest == header2->dest

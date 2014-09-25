@@ -1,6 +1,12 @@
 #ifndef CAM_H
 #define CAM_H
 
+#ifdef NESC
+#define NESC_COMBINE(x) @combine(x)
+#else
+#define NESC_COMBINE(x)
+#endif
+
 #include "message.h"
 
 enum { DIGESTMSG = 95,
@@ -28,18 +34,19 @@ enum { DIGESTMSG = 95,
        CAM_MAX_RETRIES = 3,
 
        LQI_DIFF_THRESHOLD = 25,
-
        MAX_NETWORK_SIZE = 10,
+       FWD_UNKNOWN_LINKS = 1,
 
        ROUTING_DELAY = 80,
        CAM_FWD_TIMEOUT = 1250,
+       LINK_VALIDATION_TIMEOUT = 5000,
        CAM_EAVESDROPPING_TIMEOUT = 1500,
        SIGFLASH_DURATION = 1000
 
 
 };
 
-nx_struct msg_digest_t {
+typedef nx_struct msg_digest_t {
     nx_uint16_t h_src; 
     nx_uint8_t h_dest;
     nx_uint8_t h_len;
@@ -53,10 +60,12 @@ nx_struct msg_digest_t {
     nx_uint8_t type;
     nx_uint8_t id;
     nx_uint8_t len;
-    nx_uint8_t lqi;
 } msg_digest_t;
 
-nx_struct msg_analytics_t {
+typedef nx_struct msg_analytics_t {
+    // metadata (metadatum?)
+    nx_uint8_t lqi;
+
     // internal checks
     nx_bool headers_agree;
     nx_bool valid_len;
@@ -75,8 +84,8 @@ nx_struct msg_analytics_t {
 
 typedef union msg_report_t {
     msg_digest_t digest;
-    msg_analysis_t analytics;
-}
+    msg_analytics_t analytics;
+} msg_report_t;
 
 typedef nx_struct link_validation_msg_t {
     nx_uint8_t src;
@@ -134,12 +143,12 @@ bool inChronologicalOrder(uint32_t t1, uint32_t t2) {
 
 // N.B. - This function only performs correctly on 
 uint32_t checksum_msg(message_t *msg) {
+    uint8_t i;
+    checksummed_msg_t *payload;
     uint32_t checksum = 0;
 
-    checksummed_msg_t *payload;
-
-    // TODO: cut down checksum to only parity-checked parts of message
-
+    // currently checking only the payload. Keeping this around in case that's a dumb idea.
+    /*
     // checksum header
     for ( i = 0 ; i < sizeof(message_header_t) ; i++ )
 	checksum += (uint8_t) *(msg->header+i);
@@ -147,7 +156,7 @@ uint32_t checksum_msg(message_t *msg) {
     // checksum footer
     for ( i = 0 ; i < sizeof(message_footer_t) ; i++ )
 	checksum += (uint8_t) *(msg->footer+i);
-/*
+
     // checksum metadata
     for ( i = 0 ; i < sizeof(message_metadata_t) ; i++ )
 	checksum += (uint8_t) *(msg->metadata+i);
@@ -156,17 +165,24 @@ uint32_t checksum_msg(message_t *msg) {
     cc2420_metadata_t *metadata;
     metadata = (cc2420_metadata_t*) &(msg->metadata);
     checksum -= metadata->timestamp;
+    */
 
-*/
     // checksum data
     payload = (checksummed_msg_t*) msg->data;
 
     checksum += payload->type;
     checksum += payload->len;
     for ( i = 0 ; i < MAX_PAYLOAD ; i++ )
-	checksum += *(payload->data + i);
+	checksum += payload->data[i];
 
     return checksum;
 }
 
+/*
+message_t *msgcombine(message_t *m1, message_t *m2) {
+    return m1;
+}
+
+typedef message_t *message_t NESC_COMBINE("msgcombine");
+*/
 #endif
