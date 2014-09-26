@@ -8,7 +8,7 @@ module PongC {
 	interface AMSend;
 	interface Receive;
 	interface Timer<TMilli> as Timer;
-	interface StdControl as CAMControl;
+	interface SplitControl as CAMControl;
     }
 }
 implementation {
@@ -16,13 +16,22 @@ implementation {
     testmsg_t *payloadPtr = (testmsg_t*) msgBuff.data;
 
     event void Boot.booted() {
-	call CAMControl.start();
 	call RadioControl.start();
     }
+
+    
 
     event void RadioControl.startDone(error_t ok) {
 	if (ok != SUCCESS) 
 	    call RadioControl.start();
+	else {
+	    call CAMControl.start();
+	}
+    }
+
+    event void CAMControl.startDone(error_t ok) {
+	if (ok != SUCCESS) 
+	    call CAMControl.start();
 	else {
 	    if (TOS_NODE_ID == 0) 
 		call AMSend.send(4, &msgBuff, sizeof(testmsg_t));
@@ -30,6 +39,7 @@ implementation {
     }
 
     event void RadioControl.stopDone(error_t error) {}
+    event void CAMControl.stopDone(error_t error) {}
 
     event void AMSend.sendDone(message_t* msg, error_t error) {}
 

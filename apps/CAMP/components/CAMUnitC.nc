@@ -3,8 +3,8 @@
 configuration CAMUnitC {
     provides {
 	interface AMSend;
-	interface Receive;
-	interface StdControl;
+	interface CAMReceive;
+	interface SplitControl;
 	// testing only
 	//interface StdControl as ReceiveControl;
     }
@@ -33,6 +33,9 @@ implementation {
 	//ReceiveStubC as SubReceive,
 	new AMSnooperC(CAMMSG),
         ActiveMessageC,
+	new CAMSenderC(REPORTMSG) as ReportSend,
+	new CAMSenderC(DIGESTMSG) as DigestSend,
+	new CAMReceiverC(DIGESTMSG) as DigestReceive,
 
 	LinkStrengthLogC as LinkStrengthLog,
 	LinkControlC as LinkControl,
@@ -43,16 +46,19 @@ implementation {
 	RandomC;
    
     AMSend = App.AMSend;
-    Receive = App.Receive;
-    StdControl = App.StdControl;
+    CAMReceive = App.CAMReceive;
+    SplitControl = App.SplitControl;
 
     App.SubSend -> SubSend;
     App.SubReceive -> SubReceive;
     App.AMControl -> ActiveMessageC;
-    App.ReportSend -> App.AMSend;
+    App.ReportSend -> ReportSend;
+    App.DigestSend -> DigestSend;
+    App.DigestReceive -> DigestReceive;
 
     App.LinkStrengthLog -> LinkStrengthLog;
     App.LinkControl -> LinkControl;
+    App.LinkSplitControl -> LinkControl;
 
     App.RoutingQueue->RoutingQueue;
     App.SendingQueue->SendingQueue;

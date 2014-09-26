@@ -4,6 +4,7 @@
 configuration PongAppC {}
 implementation {
     components MainC,
+//	DelugeC,
 	PongC as App,
 	ActiveMessageC,
 	new TimerMilliC() as Timer,

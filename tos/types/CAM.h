@@ -14,6 +14,8 @@ enum { DIGESTMSG = 95,
        CAMMSG = 97,
        TESTMSG = 98,
        LINKVALMSG = 99,
+       BEACONMSG = 100,
+       BEACONUPDATEMSG = 101,
        MAX_PAYLOAD = (TOSH_DATA_LENGTH - 13),
        CAM_TIMEOUT = 50,
        CAM_RETRIES = 3,
@@ -39,14 +41,21 @@ enum { DIGESTMSG = 95,
 
        ROUTING_DELAY = 80,
        CAM_FWD_TIMEOUT = 1250,
-       LINK_VALIDATION_TIMEOUT = 5000,
+       LINK_VALIDATION_TIMEOUT = 10000,
        CAM_EAVESDROPPING_TIMEOUT = 1500,
-       SIGFLASH_DURATION = 1000
+       SIGFLASH_DURATION = 1000,
+       BEACONINTERVAL = 100,
+       BEACONPHASELENGTH = 5000,
 
+       // Filter section
 
+       REPORT_DROPS = 1,
+       
 };
 
 typedef nx_struct msg_digest_t {
+    nx_uint8_t reporter;
+
     nx_uint16_t h_src; 
     nx_uint8_t h_dest;
     nx_uint8_t h_len;
@@ -62,6 +71,10 @@ typedef nx_struct msg_digest_t {
     nx_uint8_t len;
 } msg_digest_t;
 
+typedef nx_struct beacon_update_t {
+    nx_uint8_t permissions[MAX_NETWORK_SIZE];
+} beacon_update_t;
+
 typedef nx_struct msg_analytics_t {
     // metadata (metadatum?)
     nx_uint8_t lqi;
@@ -72,6 +85,7 @@ typedef nx_struct msg_analytics_t {
     nx_bool anomalous_lqi;
     nx_bool first_time_heard;
     nx_bool checksum_correct;
+    nx_bool impersonating_me;
 
     // buffer checks
     nx_uint8_t checksum_matches;

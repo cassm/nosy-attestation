@@ -4,15 +4,18 @@
 module CAMUnitP {
     provides {
 	interface AMSend;
-	interface Receive;
-	interface StdControl;
+	interface CAMReceive;
+	interface SplitControl;
     }
     uses {
 	interface AMSend as SubSend;
 	interface AMSend as ReportSend;
+	interface AMSend as DigestSend;
 	interface Receive as SubReceive;
+	interface Receive as DigestReceive;
 	interface Receive as Snoop;
 	interface SplitControl as AMControl;
+	interface SplitControl as LinkSplitControl;
 	interface Leds;
 	interface Timer<TMilli> as ListeningTimer;
 	interface Timer<TMilli> as LightTimer;
@@ -57,7 +60,7 @@ implementation {
 
     task void ReportingTask();
 
-    command error_t StdControl.start() {
+    command error_t SplitControl.start() {
 	exitBufferPtr = &exitBuffer;
 	call RoutingQueue.initialise();
 	call SendingQueue.initialise();
@@ -69,6 +72,35 @@ implementation {
 	return SUCCESS;	
     }
 
+    event void AMControl.startDone(error_t err) {
+	if (err != SUCCESS) {
+	    call AMControl.start();
+	}
+	else {
+	    call LinkSplitControl.start();
+	}
+    }
+
+    event void LinkSplitControl.startDone(error_t err) {
+	if (err != SUCCESS) {
+	    call LinkSplitControl.start();
+	}
+	else {
+	    signal SplitControl.startDone(SUCCESS);
+	}
+    }
+
+    event void AMControl.stopDone(error_t err) {
+	// do nothing
+    }
+    event void LinkSplitControl.stopDone(error_t err) {
+	// do nothing
+    }
+
+    command error_t SplitControl.stop() {}
+
+    
+
     error_t buildDigest(message_t* target, message_t *output) {
         cc2420_header_t *header;
 	checksummed_msg_t *payload;
@@ -77,6 +109,8 @@ implementation {
 	header = &((message_header_t*)target->header)->cc2420;
 	payload = (checksummed_msg_t*) target->data;
 	digest = (msg_digest_t*) output->data;
+
+	digest->reporter = TOS_NODE_ID;
 
 	digest->h_src = header->src;
 	digest->h_dest = header->dest;
@@ -139,6 +173,9 @@ implementation {
 	// see if the checksum is valid
 	report->analytics.checksum_correct = ( payload->checksum == checksum_msg(target) );
 
+	// is that you, John Wayne?
+	report->analytics.impersonating_me = ( header->src == TOS_NODE_ID );
+
 	// ===================== CONTINUITY CHECKS =====================
 
 	// perform the following checks if the message is being listened for
@@ -171,7 +208,7 @@ implementation {
 	report->analytics.valid_routing = call RouteFinder.checkRouting(payload);
 
 	// check link validity against cached link permissions
-	report->analytics.link_status = call LinkControl.isPermitted(payload->curr, payload->dest);
+	report->analytics.link_status = call LinkControl.isPermitted(payload->curr, payload->next);
 
         /*
 	    if ( newpayload->curr == storedPayload->curr && newPayload->ID == storedPayload->ID ) {
@@ -208,20 +245,6 @@ implementation {
 
 	return SUCCESS; 
     }
-
-    
-
-    event void AMControl.startDone(error_t err) {
-	if (err != SUCCESS) {
-	    call AMControl.start();
-	}
-    }
-
-    event void AMControl.stopDone(error_t err) {
-	// do nothing
-    }
-
-    command error_t StdControl.stop() {}
 
     void printPacket(message_t* msg) {
 	checksummed_msg_t *payload = (checksummed_msg_t*) msg->data;
@@ -265,9 +288,6 @@ implementation {
     task void SendingTask() { 
 	message_t *popPtr;
 	checksummed_msg_t *payload;
-
-	printf("SendingTask\n");
-	printfflush();
 
 	if ( call SendingQueue.isEmpty() )
 	    return;
@@ -405,14 +425,10 @@ implementation {
     task void ReceivedTask() {
 	checksummed_msg_t *payload;
 
-	printf("ReceivedTask\n");
-	printfflush();
-
 	if ( call ReceivedQueue.isEmpty() )
 	    return;
 
 	receivedBuffer = *call ReceivedQueue.pop();
-	*exitBufferPtr = receivedBuffer;
 
 	payload = (checksummed_msg_t*) receivedBuffer.data;
 	
@@ -426,12 +442,10 @@ implementation {
 	call SendingQueue.push(&receivedBuffer);
 	post SendingTask();
 	
-	payload = (checksummed_msg_t*) exitBufferPtr->data;
-	
 	// signal receive
 	printf("Signalling receive\n");
 	printfflush();
-	exitBufferPtr = signal Receive.receive(exitBufferPtr, &(payload->data), payload->len);
+        signal CAMReceive.receive(&receivedBuffer, &(payload->data), payload->len);
 
 	if ( !call ReceivedQueue.isEmpty() )
 	    post ReceivedTask();
@@ -439,6 +453,7 @@ implementation {
 
     task void ReportingTask() {
 	cc2420_header_t *header;
+        msg_digest_t *digestptr;
 
 	if ( call ReportingQueue.isEmpty() )
 	    return;
@@ -451,8 +466,10 @@ implementation {
 	header = &((message_header_t*)reportingBuffer.header)->cc2420;
 	
 	// report is for a dropped message
-	if ( header->type == DIGESTMSG ) {
-	    call ReportSend.send(BASE_STATION_ID, &reportingBuffer, sizeof(msg_digest_t));
+	if ( header->type == DIGESTMSG && REPORT_DROPS ) {
+	    digestptr = (msg_digest_t*) reportingBuffer.data;
+	    if ( digestptr->next != 0 )
+		call DigestSend.send(BASE_STATION_ID, &reportingBuffer, sizeof(msg_digest_t));
 	    return;
 	}
 
@@ -474,8 +491,18 @@ implementation {
     }
 
     event void ReportSend.sendDone(message_t *msg, error_t error) {
-	if ( error == SUCCESS )
+	if ( error != SUCCESS )
 	    call ReportSend.send(BASE_STATION_ID, &reportingBuffer, sizeof(msg_report_t));
+	else {
+	    reportingBusy = FALSE;
+	    if ( !call ReportingQueue.isEmpty() )
+		post ReportingTask();
+	}
+    }
+
+    event void DigestSend.sendDone(message_t *msg, error_t error) {
+	if ( error != SUCCESS )
+	    call DigestSend.send(BASE_STATION_ID, &reportingBuffer, sizeof(msg_report_t));
 	else {
 	    reportingBusy = FALSE;
 	    if ( !call ReportingQueue.isEmpty() )
@@ -492,14 +519,20 @@ implementation {
 	    return;
 	validationBusy = TRUE;
 
+	printf("Requesting validation\n");
+	printfflush();
+
 	validationBuffer = *call ValidationQueue.pop();
 	payload = (checksummed_msg_t*) validationBuffer.data;
 
-	call LinkControl.ValidateLink(payload->curr, payload->next);
+	call LinkControl.validateLink(payload->curr, payload->next);
     }
 
-    event void LinkControl.ValidationDone( uint8_t src, uint8_t dest, uint8_t status ) {
+    event void LinkControl.validationDone( uint8_t src, uint8_t dest, uint8_t status ) {
 	checksummed_msg_t *payloadPtr = (checksummed_msg_t*) validationBuffer.data;
+
+	printf("Validation done: %d\n", status);
+	printfflush();
 
 	if ( status == PERMITTED || ( status == UNKNOWN && FWD_UNKNOWN_LINKS ) ) {
 	    // TODO: What to do if queue is full?
@@ -516,9 +549,6 @@ implementation {
 		post ListeningTask();
 		return;
 	    }
-	
-	    printf("Forwarding...\n");
-	    printfflush();
 
 	    // otherwise, forward it
      
@@ -539,14 +569,20 @@ implementation {
 	if ( call RoutingQueue.isFull() )
 	    return EBUSY;
 
-	// manually set header type
-	header = &((message_header_t*)msg->header)->cc2420;
-	header->type = CAMMSG;
+	if ( addr == TOS_NODE_ID ) {
+	    // stop hitting yourself
+	    return EALREADY;
+	}
 
 	payload = (checksummed_msg_t*) msg->data;
 
-	printf("Send to %d requested.\n", addr);
+	// manually set header type
+     	header = &((message_header_t*)msg->header)->cc2420;
+
+	printf("Send to %d requested. Type = %d/%d\n", addr, payload->type, header->type);
 	printfflush();
+
+	header->type = CAMMSG;
 
 	payload->ID = msgID++;
 	payload->retry = 0;
@@ -589,7 +625,10 @@ implementation {
 
 
     event void SubSend.sendDone(message_t *msg, error_t error) {
+	uint8_t linkStatus;
 	checksummed_msg_t *payload = (checksummed_msg_t*) msg->data;
+
+	linkStatus = call LinkControl.isPermitted(payload->curr, payload->next);
 
 	// if this is not an ack
 	if ( payload->dest != TOS_NODE_ID ) {
@@ -599,8 +638,15 @@ implementation {
 		return;
 	    }
 
-	    // set alarm for CAM_FWD_TIMEOUT ms in the future
-	    call ListeningQueue.insert(msg, CAM_FWD_TIMEOUT + call SysTime.get());
+  	    // set alarm for CAM_FWD_TIMEOUT ms in the future
+	    if ( linkStatus == UNKNOWN ) {
+		call ListeningQueue.insert(msg, LINK_VALIDATION_TIMEOUT + CAM_FWD_TIMEOUT + call SysTime.get());
+	    }
+
+	    else if ( linkStatus == PERMITTED ) {
+		call ListeningQueue.insert(msg, CAM_FWD_TIMEOUT + call SysTime.get());
+	    }
+
 	    post ListeningTask();
 	
 	}
@@ -609,6 +655,16 @@ implementation {
 
 	if ( !call SendingQueue.isEmpty() )
 	    post SendingTask();
+    }
+
+    event message_t *DigestReceive.receive(message_t *msg, void *payload, uint8_t len) {
+	msg_digest_t *payloadPtr = (msg_digest_t*) msg->data;
+
+	if ( TOS_NODE_ID == 0 ) {
+	    printf("Report: %d reports message dropped between %d and %d.\n", payloadPtr->reporter, payloadPtr->curr, payloadPtr->next);
+	    printfflush();
+	}
+	return msg;
     }
 
     event message_t *SubReceive.receive(message_t *msg, void *payload, uint8_t len) {
@@ -628,13 +684,19 @@ implementation {
 	call ReportingQueue.push(&analysisBuffer);
 	post ReportingTask();
 
+	call LinkStrengthLog.update(msg);
+
 	// don't listen for this any more
 	call ListeningQueue.removeMsg(msg);
 	post ListeningTask();
 
 	linkStatus = call LinkControl.isPermitted(payloadPtr->curr, payloadPtr->next);
 
-	if (linkStatus == PERMITTED) {
+	// allow all link validation messages from base
+	if (linkStatus == PERMITTED || (payloadPtr->curr == 0 && payloadPtr->type == LINKVALMSG) || TOS_NODE_ID == 0) {
+
+	    printf("Link permitted\n");
+	    printfflush();
 	    // TODO: What to do if queue is full?
 	    // if the message is for this node, receive it
 	    if ( payloadPtr->dest == TOS_NODE_ID ) {
@@ -662,9 +724,17 @@ implementation {
 	}
 
 	else if ( linkStatus == UNKNOWN ) {
+	    printf("Link unknown\n");
+	    printfflush();
+
 	    call ValidationQueue.push(msg);
 	    post validationTask();
 	    return msg;
+	}
+
+	else {
+	    printf("Link forbidden\n");
+	    printfflush();
 	}
 
 	// if link status is forbidden, drop packet.
@@ -691,6 +761,7 @@ implementation {
 
     event message_t *Snoop.receive(message_t *msg, void *payload, uint8_t len) {
 	checksummed_msg_t *payloadPtr;
+        cc2420_header_t *header;
 
 //	printf("Snoop.receive\n");
 //	printPacket(msg);
@@ -701,18 +772,26 @@ implementation {
 
 	payloadPtr = (checksummed_msg_t*) payload;
 
+	header = &((message_header_t*)msg->header)->cc2420;
+
 	// report on msg
+	// TODO; block dangerous messages here
 	buildReport(msg, &analysisBuffer);
 	call ReportingQueue.push(&analysisBuffer);
 	post ReportingTask();
 
+	call LinkStrengthLog.update(msg);
+
 	// process acks
-	if ( payloadPtr->dest == payloadPtr->curr ) {
-	    printf("Delivery of message from %d to %d acknowledged.\n", payloadPtr->src, payloadPtr->dest);
+	if ( payloadPtr->dest == AM_BROADCAST_ADDR || (payloadPtr->dest == payloadPtr->curr && header->type == CAMMSG) ) {
+	    printf("Delivery of type %d message from %d to %d acknowledged.\n", payloadPtr->type, payloadPtr->src, payloadPtr->dest);
+	    printf("Header details: %d -> %d : %d\n", header->src, header->dest, header->type);
 	    printfflush();
 	    call ListeningQueue.removeMsg(msg);
 	    post ListeningTask();
 	}
+
+	
 
 	// if not ack, listen for as normal
 	else {
