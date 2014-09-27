@@ -46,10 +46,11 @@ enum { DIGESTMSG = 95,
        SIGFLASH_DURATION = 1000,
        BEACONINTERVAL = 100,
        BEACONPHASELENGTH = 5000,
+       INVALID_NODE = 255,
 
        // Filter section
 
-       REPORT_DROPS = 1,
+       REPORT_DROPS = 0
        
 };
 

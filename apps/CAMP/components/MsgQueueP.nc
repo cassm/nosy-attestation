@@ -126,6 +126,16 @@ implementation {
 	    return TRUE;
     }
 
+    command message_t *MsgQueue.getByDest(uint8_t dest) {
+	for ( i = 0 ; i < CAM_QUEUE_SIZE ; i++ ) {
+	    if ( inUse[i] && ((checksummed_msg_t*)(queue[i].data))->dest == dest ) {
+		inUse[i] = FALSE;
+		return &queue[i];
+	    }
+	}
+	return NULL;
+    }
+
     command message_t *MsgQueue.removeMsg(message_t *msg) {
 	int result = findMsg(msg);
 	if ( result < 0 )

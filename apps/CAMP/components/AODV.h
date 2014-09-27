@@ -5,7 +5,8 @@
  * Version: 0.0.1
  * Published under the terms of the GNU General Public License (GPLv2).
  */
-
+#ifndef AODV_H
+#define AODV_H
 
 typedef nx_struct {
   nx_uint8_t    seq;
@@ -76,3 +77,4 @@ typedef struct {
 #define INVALID_NODE_ID       0xFFFF
 #define INVALID_INDEX         0xFF
 
+#endif

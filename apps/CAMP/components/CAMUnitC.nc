@@ -40,7 +40,7 @@ implementation {
 	LinkStrengthLogC as LinkStrengthLog,
 	LinkControlC as LinkControl,
 
-	new AODVStubC(),
+	AODV as RouteFinder,
 	PrintfC,
 	SerialStartC,
 	RandomC;
@@ -48,6 +48,8 @@ implementation {
     AMSend = App.AMSend;
     CAMReceive = App.CAMReceive;
     SplitControl = App.SplitControl;
+
+    App.AODVControl -> RouteFinder.SplitControl;
 
     App.SubSend -> SubSend;
     App.SubReceive -> SubReceive;
@@ -79,7 +81,7 @@ implementation {
     App.Leds -> LedsC;
     App.SysTime -> SysTime;
     App.Random -> RandomC;    
-    App.RouteFinder -> AODVStubC;
+    App.RouteFinder -> RouteFinder;
 }
 
     

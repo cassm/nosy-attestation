@@ -16,8 +16,8 @@ includes AODV;
 configuration AODV {
   provides {
     interface SplitControl;
-    interface AMSend[am_id_t id];
     interface Receive[uint8_t id];
+    interface RouteFinder;
   }
   uses {
     ;
@@ -30,17 +30,13 @@ implementation {
       ActiveMessageC;
 
   SplitControl = AODV_M.SplitControl;
-  AMSend = AODV_M.AMSend;
   Receive = AODV_M.Receive;
-  
+  RouteFinder = AODV_M.RouteFinder;
   AODV_M.Random -> RandomC;
   AODV_M.AMPacket -> ActiveMessageC;
   AODV_M.Packet -> ActiveMessageC;
   AODV_M.PacketAcknowledgements -> ActiveMessageC;
   AODV_M.AMControl -> ActiveMessageC.SplitControl;
-
-  components new MsgQueueC() as QueryQueue;
-  AODV_M.QueryQueue -> QueryQueue;
   
   components new AMSenderC(AM_AODV_RREQ) as MHSendRREQ, 
              new AMSenderC(AM_AODV_RREP) as MHSendRREP, 

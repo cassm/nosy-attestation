@@ -11,6 +11,8 @@ interface MsgQueue {
 
     command message_t *removeMsg(message_t *msg);
 
+    command message_t *getByDest(uint8_t dest);
+
     command message_t *inspectMsg(message_t *msg);
 
     command error_t push(message_t* item);

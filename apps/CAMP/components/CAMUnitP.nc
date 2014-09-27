@@ -16,6 +16,7 @@ module CAMUnitP {
 	interface Receive as Snoop;
 	interface SplitControl as AMControl;
 	interface SplitControl as LinkSplitControl;
+	interface SplitControl as AODVControl;
 	interface Leds;
 	interface Timer<TMilli> as ListeningTimer;
 	interface Timer<TMilli> as LightTimer;
@@ -77,6 +78,15 @@ implementation {
 	    call AMControl.start();
 	}
 	else {
+	    call AODVControl.start();
+	}
+    }
+
+    event void AODVControl.startDone(error_t err) {
+	if (err != SUCCESS) {
+	    call AODVControl.start();
+	}
+	else {
 	    call LinkSplitControl.start();
 	}
     }
@@ -91,6 +101,9 @@ implementation {
     }
 
     event void AMControl.stopDone(error_t err) {
+	// do nothing
+    }
+    event void AODVControl.stopDone(error_t err) {
 	// do nothing
     }
     event void LinkSplitControl.stopDone(error_t err) {
@@ -257,7 +270,7 @@ implementation {
 	       payload->next);
 	printfflush();
     }
-
+/*
     task void RoutingTask() { 
 	message_t *popPtr;
 	checksummed_msg_t *payload;
@@ -284,7 +297,7 @@ implementation {
 
 	call RouteFinder.getNextHop(payload->dest  , payload->ID , payload->src );
     }
-
+*/
     task void SendingTask() { 
 	message_t *popPtr;
 	checksummed_msg_t *payload;
@@ -554,7 +567,7 @@ implementation {
      
 	    // TODO: what to do if queue is full?
 	    call RoutingQueue.push(&validationBuffer);
-	    post RoutingTask();
+	    call RouteFinder.getNextHop( dest );
 	}
 	post validationTask();
     }
@@ -576,6 +589,12 @@ implementation {
 
 	payload = (checksummed_msg_t*) msg->data;
 
+	payload->src = TOS_NODE_ID;
+	payload->prev = TOS_NODE_ID;
+	payload->curr = TOS_NODE_ID;
+	payload->next = TOS_NODE_ID;
+	payload->dest = addr;
+
 	// manually set header type
      	header = &((message_header_t*)msg->header)->cc2420;
 
@@ -592,35 +611,42 @@ implementation {
 	if ( call RoutingQueue.push(msg) == ENOMEM )
 	    return EBUSY;
 
-	post RoutingTask();
+	call RouteFinder.getNextHop( addr );
 
 	signal AMSend.sendDone(msg, SUCCESS);
 
 	return SUCCESS;
     }
 
-    event void RouteFinder.nextHopFound( uint8_t next_id, uint8_t msg_ID, uint8_t src, error_t ok ) {
-	checksummed_msg_t *payload = (checksummed_msg_t*) routingBuffer.data;
+    event void RouteFinder.nextHopFound( uint8_t nextHop, uint8_t dest ) {
+	message_t *routingPtr = call RoutingQueue.getByDest(dest);
 
-	if ( payload->retry == 0 ) {
-	    payload->prev = payload->curr;
-	    payload->curr = payload->next;
-	    payload->next = next_id;
+	printf("Next hop to %d found: %d\n", dest, nextHop);
+	printfflush();
+
+	while ( routingPtr != NULL ) {
+	    checksummed_msg_t *payload = (checksummed_msg_t*) routingPtr->data;
+ 
+	    // if this is the first attempt at sending this message from this node
+	    // set all the routing information
+	    if ( payload->retry == 0 ) {
+		payload->prev = payload->curr;
+		payload->curr = payload->next;
+		payload->next = nextHop;
+	    }
+
+	    // otherwise, just change the next node
+	    else {
+		payload->next = nextHop;
+		payload->retry = 0;
+	    }
+
+	    // TODO - what to do if sendingqueue full?
+	    call SendingQueue.push(routingPtr);
+	    routingPtr = call RoutingQueue.getByDest(dest);
 	}
 
-	else {
-	    payload->next = next_id;
-	    payload->retry = 0;
-	}
-
-	// TODO - what to do if sendingqueue full?
-	call SendingQueue.push(&routingBuffer);
 	post SendingTask();
-
-	routingBusy = FALSE;
-
-	if ( !call RoutingQueue.isEmpty() )
-	    post RoutingTask();
     }
 
 
@@ -719,7 +745,7 @@ implementation {
      
 	    // TODO: what to do if queue is full?
 	    call RoutingQueue.push(msg);
-	    post RoutingTask();
+	    call RouteFinder.getNextHop(payloadPtr->dest);
 	    return msg;
 	}
 
