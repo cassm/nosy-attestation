@@ -169,14 +169,11 @@ implementation {
 
     task void sendReading() {
 	call Leds.led0On();
-	if (!attestationTime) {
 	    if (!sending) {
 		if ( call Data.send(&msgbuff, sizeof(dataReading_t)) == SUCCESS) {
 		    sending =TRUE;
 		}
 	    }
-	}
-	// TODO: implement reading buffering
     }
 
     event void Data.sendDone(message_t* msg, error_t error) {

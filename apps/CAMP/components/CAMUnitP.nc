@@ -13,6 +13,7 @@ module CAMUnitP {
 	interface AMSend as DigestSend;
 	interface Receive as SubReceive;
 	interface Receive as DigestReceive;
+	interface Receive as ReportReceive;
 	interface Receive as Snoop;
 	interface SplitControl as AMControl;
 	interface SplitControl as LinkSplitControl;
@@ -20,6 +21,7 @@ module CAMUnitP {
 	interface Leds;
 	interface Timer<TMilli> as ListeningTimer;
 	interface Timer<TMilli> as LightTimer;
+	interface Timer<TMilli> as ReportTimer;
 
 	interface MsgQueue as RoutingQueue;
 	interface MsgQueue as SendingQueue;
@@ -112,7 +114,22 @@ implementation {
 
     command error_t SplitControl.stop() {}
 
-    
+    bool reportFilter(message_t *msg) {
+	msg_report_t *report = (msg_report_t*) msg->data;
+
+	// if this is an imperonation, report it
+	if (report->analytics.impersonating_me)
+	    return TRUE;
+	
+	if (report->analytics.payload_matches == BAD)
+	    return TRUE;
+	
+	if (report->analytics.anomalous_lqi)
+	    return TRUE;
+
+	return FALSE;
+    }
+	
 
     error_t buildDigest(message_t* target, message_t *output) {
         cc2420_header_t *header;
@@ -167,7 +184,8 @@ implementation {
 	report->analytics.lqi = metadataPtr->lqi;
 
 	// copy digest into report
-	memcpy(&report->digest, &digestBuffer.data, sizeof(msg_digest_t));
+	report->digest = *((msg_digest_t*) &(digestBuffer.data));
+	//memcpy(&report->digest, &digestBuffer.data, sizeof(msg_digest_t));
 	
 	// check AM header against CAM header
 	report->analytics.headers_agree = ( report->digest.h_src == report->digest.curr
@@ -178,7 +196,7 @@ implementation {
 					&& report->digest.len <= MAX_PAYLOAD );
 
 	// check whether the LQI of the received message is within the bounds of what we would expect
-	report->analytics.anomalous_lqi = ( call LinkStrengthLog.getLqiDiff(target) >= LQI_DIFF_THRESHOLD );
+	report->analytics.anomalous_lqi = ( call LinkStrengthLog.getLqiDiff(target) >=(int) LQI_DIFF_THRESHOLD );
     
 	// see if we have heard from this mote before
 	report->analytics.first_time_heard = ( call LinkStrengthLog.getLqi(payload->curr) == 0 );
@@ -321,10 +339,10 @@ implementation {
 
 	sendingBuffer = *popPtr;
 	payload = (checksummed_msg_t*) sendingBuffer.data;
+	payload->curr = TOS_NODE_ID;
+
 
 	// TODO: What to do if subsend.send fails?
-	printf("SubSending to %d.\n", payload->next);
-
 	if ( call SubSend.send(payload->next, &sendingBuffer, sizeof(checksummed_msg_t)) != SUCCESS ) {
 	    call SendingQueue.push(&sendingBuffer);
 	    sendingBusy = FALSE;
@@ -333,8 +351,8 @@ implementation {
 	    post SendingTask();
 	}
 	else {
-	    printf("Send successful\n");
-	    printfflush();
+	    //printf("Send successful\n");
+	    //printfflush();
 	}
     }
 
@@ -409,10 +427,12 @@ implementation {
 	    // if max retries, reroute
 	    if ( payload->retry++ >= CAM_MAX_RETRIES ) {
 		// TODO: add to blacklist
-		printf("Send to %d failed. Aborting..\n", payload->next);
+		call RouteFinder.hopFailed(payload->src, payload->dest);
+		call SendingQueue.push(&timeoutBuffer);
+		call RouteFinder.getNextHop(payload->dest);
+
+		printf("Send to %d failed. Rerouting..\n", payload->next);
 		printfflush();
-//		call RoutingQueue.push(&heardBuffer);
-//		post RoutingTask();
 	    }
 
 	    // if not max retries, resend
@@ -456,8 +476,8 @@ implementation {
 	post SendingTask();
 	
 	// signal receive
-	printf("Signalling receive\n");
-	printfflush();
+	//printf("Signalling receive\n");
+	//printfflush();
         signal CAMReceive.receive(&receivedBuffer, &(payload->data), payload->len);
 
 	if ( !call ReceivedQueue.isEmpty() )
@@ -490,8 +510,8 @@ implementation {
 	else if ( header->type == REPORTMSG ) {
 
 	    // TODO: implement filtering here
-	    if ( FALSE ) {
-		call ReportSend.send(BASE_STATION_ID, &reportingBuffer, sizeof(msg_report_t));
+	    if ( reportFilter(&reportingBuffer) ) {
+		call ReportTimer.startOneShot(10 * TOS_NODE_ID);
 		return;
 	    }
 	}
@@ -501,6 +521,10 @@ implementation {
 
 	if ( !call ReportingQueue.isEmpty() )
 	    post ReportingTask();
+    }
+    
+    event void ReportTimer.fired() {
+	call ReportSend.send(BASE_STATION_ID, &reportingBuffer, sizeof(msg_report_t));
     }
 
     event void ReportSend.sendDone(message_t *msg, error_t error) {
@@ -598,8 +622,8 @@ implementation {
 	// manually set header type
      	header = &((message_header_t*)msg->header)->cc2420;
 
-	printf("Send to %d requested. Type = %d/%d\n", addr, payload->type, header->type);
-	printfflush();
+	//printf("Send to %d requested. Type = %d/%d\n", addr, payload->type, header->type);
+	//printfflush();
 
 	header->type = CAMMSG;
 
@@ -621,12 +645,12 @@ implementation {
     event void RouteFinder.nextHopFound( uint8_t nextHop, uint8_t dest ) {
 	message_t *routingPtr = call RoutingQueue.getByDest(dest);
 
-	printf("Next hop to %d found: %d\n", dest, nextHop);
-	printfflush();
+	//printf("Next hop to %d found: %d\n", dest, nextHop);
+	//printfflush();
 
 	while ( routingPtr != NULL ) {
 	    checksummed_msg_t *payload = (checksummed_msg_t*) routingPtr->data;
- 
+	    
 	    // if this is the first attempt at sending this message from this node
 	    // set all the routing information
 	    if ( payload->retry == 0 ) {
@@ -693,14 +717,36 @@ implementation {
 	return msg;
     }
 
+    event message_t *ReportReceive.receive(message_t *msg, void *payload, uint8_t len) {
+	msg_report_t *payloadPtr = (msg_report_t*) msg->data;
+
+	if ( TOS_NODE_ID == 0 && payloadPtr->digest.curr != 5){ //&& payloadPtr->digest.type == 98 ) {
+	    printf("Report:\n");
+	    if ( payloadPtr->analytics.impersonating_me ) {
+		printf("\t%d reports that it is being impersonated!\n", payloadPtr->digest.reporter);
+	    }
+	    if ( payloadPtr->analytics.payload_matches == BAD ) {
+		printf("\t%d reports that %d has tampered with a packet payload!\n", payloadPtr->digest.reporter, payloadPtr->digest.curr);
+	    }
+	    if ( payloadPtr->analytics.anomalous_lqi ) {
+		printf("\t%d reports that %d has been transmitting with an anomalous signal strength!\n", payloadPtr->digest.reporter, payloadPtr->digest.curr);
+	    }
+	    printf("\n");
+	    printfflush();
+	}
+	return msg;
+    }
+
     event message_t *SubReceive.receive(message_t *msg, void *payload, uint8_t len) {
 	checksummed_msg_t *payloadPtr;
 	uint8_t linkStatus;
+        cc2420_header_t *header;
+     	header = &((message_header_t*)msg->header)->cc2420;
 
 	payloadPtr = (checksummed_msg_t*) msg->data;
 
-	printf("Message for %d  subreceived\n", payloadPtr->dest);
-	printPacket(msg);
+	//printf("Message for %d  subreceived\n", payloadPtr->dest);
+	//printPacket(msg);
 	call Leds.set(0x3);
 	call LightTimer.startOneShot(250);
 
@@ -716,13 +762,16 @@ implementation {
 	call ListeningQueue.removeMsg(msg);
 	post ListeningTask();
 
+	if (TOS_NODE_ID == 4 && TAMPER_DEMO == 1) {
+	    payloadPtr->data[4] += 3;
+	}
+
 	linkStatus = call LinkControl.isPermitted(payloadPtr->curr, payloadPtr->next);
 
 	// allow all link validation messages from base
-	if (linkStatus == PERMITTED || (payloadPtr->curr == 0 && payloadPtr->type == LINKVALMSG) || TOS_NODE_ID == 0) {
-
-	    printf("Link permitted\n");
-	    printfflush();
+	if (linkStatus == PERMITTED || header->dest == AM_BROADCAST_ADDR || (payloadPtr->curr == 0 && payloadPtr->type == LINKVALMSG) || TOS_NODE_ID == 0) {
+	    //printf("Link permitted\n");
+	    //printfflush();
 	    // TODO: What to do if queue is full?
 	    // if the message is for this node, receive it
 	    if ( payloadPtr->dest == TOS_NODE_ID ) {
@@ -738,8 +787,8 @@ implementation {
 		return msg;
 	    }
 	
-	    printf("Forwarding...\n");
-	    printfflush();
+	    //printf("Forwarding...\n");
+	    //printfflush();
 
 	    // otherwise, forward it
      
@@ -750,17 +799,15 @@ implementation {
 	}
 
 	else if ( linkStatus == UNKNOWN ) {
-	    printf("Link unknown\n");
-	    printfflush();
-
+	    
 	    call ValidationQueue.push(msg);
 	    post validationTask();
 	    return msg;
 	}
 
 	else {
-	    printf("Link forbidden\n");
-	    printfflush();
+	    //printf("Link forbidden\n");
+	    //printfflush();
 	}
 
 	// if link status is forbidden, drop packet.
@@ -788,6 +835,7 @@ implementation {
     event message_t *Snoop.receive(message_t *msg, void *payload, uint8_t len) {
 	checksummed_msg_t *payloadPtr;
         cc2420_header_t *header;
+	cc2420_metadata_t *metadata;
 
 //	printf("Snoop.receive\n");
 //	printPacket(msg);
@@ -799,6 +847,7 @@ implementation {
 	payloadPtr = (checksummed_msg_t*) payload;
 
 	header = &((message_header_t*)msg->header)->cc2420;
+	metadata = &((message_metadata_t*)msg->metadata)->cc2420;
 
 	// report on msg
 	// TODO; block dangerous messages here
@@ -810,8 +859,8 @@ implementation {
 
 	// process acks
 	if ( payloadPtr->dest == AM_BROADCAST_ADDR || (payloadPtr->dest == payloadPtr->curr && header->type == CAMMSG) ) {
-	    printf("Delivery of type %d message from %d to %d acknowledged.\n", payloadPtr->type, payloadPtr->src, payloadPtr->dest);
-	    printf("Header details: %d -> %d : %d\n", header->src, header->dest, header->type);
+	    printf("Delivery of type %d message from %d to %d acknowledged with lqi of %d.\n", payloadPtr->type, payloadPtr->src, payloadPtr->dest, metadata->lqi);
+	    //printf("Header details: %d -> %d : %d\n", header->src, header->dest, header->type);
 	    printfflush();
 	    call ListeningQueue.removeMsg(msg);
 	    post ListeningTask();

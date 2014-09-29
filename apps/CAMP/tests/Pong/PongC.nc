@@ -7,6 +7,7 @@ module PongC {
 	interface Boot;
 	interface AMSend;
 	interface Receive;
+	interface Leds;
 	interface Timer<TMilli> as Timer;
 	interface SplitControl as CAMControl;
     }
@@ -33,8 +34,14 @@ implementation {
 	if (ok != SUCCESS) 
 	    call CAMControl.start();
 	else {
-	    if (TOS_NODE_ID == 0) 
-		call AMSend.send(4, &msgBuff, sizeof(testmsg_t));
+	    if ( COLLECTION_DEMO == 1 ) {
+		if (TOS_NODE_ID != 0)
+		    call Timer.startOneShot(100 * TOS_NODE_ID);
+	    }
+	    else {
+		if (TOS_NODE_ID == 0) 
+		    call AMSend.send(4, &msgBuff, sizeof(testmsg_t));
+	    }
 	}
     }
 
@@ -44,9 +51,14 @@ implementation {
     event void AMSend.sendDone(message_t* msg, error_t error) {}
 
     event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len) {
-	printf("Received!!!\n");
-	printfflush();
-	call Timer.startOneShot(1000);
+
+	if (COLLECTION_DEMO == 1) {
+	    printf("Packet received.\n");
+	    printfflush();
+	}
+
+	if ( COLLECTION_DEMO != 1 || TOS_NODE_ID != 0 )
+	     call Timer.startOneShot(1000);
 	return msg;
     }
 

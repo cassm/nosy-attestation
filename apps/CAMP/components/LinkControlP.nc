@@ -265,8 +265,8 @@ implementation {
 	payloadPtr = (link_validation_msg_t*) respondBuffer.data;
 
 	if ( TOS_NODE_ID == 0 && payloadPtr->status == 0 ) {
-	    printf("Responding...\n");
-	    printfflush();
+	    //printf("Responding...\n");
+	    //printfflush();
 
 	    payloadPtr->status = 1;
 
@@ -296,7 +296,7 @@ implementation {
 
 	msgBuff = call ValidationQueue.removeMsg(msg);
 
-	printf("%d->%d::%d\n", payloadPtr->src, payloadPtr->dest, payloadPtr->status);
+	//printf("%d->%d::%d\n", payloadPtr->src, payloadPtr->dest, payloadPtr->status);
 	
 	links[payloadPtr->dest][payloadPtr->src] = payloadPtr->status;
 

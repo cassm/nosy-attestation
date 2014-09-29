@@ -610,7 +610,9 @@ implementation {
 	}
 	return SUCCESS;
     }    
-    command error_t RouteFinder.hopFailed( uint8_t nextHop, uint8_t dest ){
+    command error_t RouteFinder.hopFailed( uint8_t src, uint8_t dest ){
+	del_route_table(dest);
+	sendRERR(dest, src, FALSE);
 	return SUCCESS;
     }
     command uint8_t RouteFinder.checkRouting( checksummed_msg_t *payload ){

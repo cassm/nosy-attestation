@@ -27,18 +27,18 @@ implementation {
 	    // lqi on the cc2420 varies between 50 and 110
 
 	    // for computational simplicity, weight previous and current value 50/50
-	    strengths[src] = (strengths[src] >> 1) + (lqi >> 1);
+	    strengths[src] = (strengths[src] / 2) + (lqi / 2);
 	}
 
 	return src;
     }
 
-    command uint8_t LinkStrengthLog.getLqiDiff(message_t *msg) {
+    command int LinkStrengthLog.getLqiDiff(message_t *msg) {
 	message_metadata_t *metadataPtr;
 	message_header_t *headerPtr;
 	uint8_t src;
 	uint8_t lqi;
-	uint8_t result;
+	int result;
 	headerPtr = (message_header_t*) msg->header;
 	metadataPtr = (message_metadata_t*) msg->metadata;
 

@@ -17,6 +17,7 @@ implementation {
 
 	new TimerMilliC() as ListeningTimer,
 	new TimerMilliC() as LightTimer,
+	new TimerMilliC() as ReportTimer,
 
 	new MsgQueueC() as RoutingQueue,
 	new MsgQueueC() as SendingQueue,
@@ -33,14 +34,15 @@ implementation {
 	//ReceiveStubC as SubReceive,
 	new AMSnooperC(CAMMSG),
         ActiveMessageC,
-	new CAMSenderC(REPORTMSG) as ReportSend,
-	new CAMSenderC(DIGESTMSG) as DigestSend,
-	new CAMReceiverC(DIGESTMSG) as DigestReceive,
+	new AMSenderC(REPORTMSG) as ReportSend,
+	new AMSenderC(DIGESTMSG) as DigestSend,
+	new AMReceiverC(DIGESTMSG) as DigestReceive,
+	new AMReceiverC(REPORTMSG) as ReportReceive,
 
 	LinkStrengthLogC as LinkStrengthLog,
 	LinkControlC as LinkControl,
 
-	AODV as RouteFinder,
+	AODVStubC as RouteFinder,
 	PrintfC,
 	SerialStartC,
 	RandomC;
@@ -57,6 +59,7 @@ implementation {
     App.ReportSend -> ReportSend;
     App.DigestSend -> DigestSend;
     App.DigestReceive -> DigestReceive;
+    App.ReportReceive -> ReportReceive;
 
     App.LinkStrengthLog -> LinkStrengthLog;
     App.LinkControl -> LinkControl;
@@ -73,7 +76,7 @@ implementation {
 
     App.ListeningTimer->ListeningTimer;
     App.LightTimer->LightTimer;
-
+    App.ReportTimer->ReportTimer;
     // testing only
     //ReceiveControl = SubReceive.ReceiveControl;
 

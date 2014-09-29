@@ -7,6 +7,7 @@ implementation {
 //	DelugeC,
 	PongC as App,
 	ActiveMessageC,
+	LedsC,
 	new TimerMilliC() as Timer,
 	CAMUnitC,
 	new CAMSenderC(TESTMSG),
@@ -14,6 +15,7 @@ implementation {
 	PrintfC, 
 	SerialStartC;
     App.Boot -> MainC;
+    App.Leds -> LedsC;
     App.RadioControl -> ActiveMessageC;
     App.AMSend -> CAMSenderC;
     App.Receive -> CAMReceiverC;

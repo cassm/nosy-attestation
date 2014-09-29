@@ -19,9 +19,6 @@ implementation {
 	initialised = TRUE;
 
 	if ( ((checksummed_msg_t*)msg->data)->type == AMId ) {
-	    printf("ID reception match\n");
-	    printfflush();
-
 	    *receiveBufferPtr = *msg;
 
 	    headerPtr = (message_header_t*) receiveBufferPtr->header;

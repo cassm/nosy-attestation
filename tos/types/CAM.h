@@ -9,7 +9,10 @@
 
 #include "message.h"
 
-enum { DIGESTMSG = 95,
+enum { TAMPER_DEMO = 0,
+       COLLECTION_DEMO = 0,
+
+       DIGESTMSG = 95,
        REPORTMSG = 96,
        CAMMSG = 97,
        TESTMSG = 98,
@@ -35,7 +38,7 @@ enum { DIGESTMSG = 95,
        CAM_QUEUE_SIZE = 10,
        CAM_MAX_RETRIES = 3,
 
-       LQI_DIFF_THRESHOLD = 25,
+       LQI_DIFF_THRESHOLD = 6,
        MAX_NETWORK_SIZE = 10,
        FWD_UNKNOWN_LINKS = 1,
 
@@ -75,6 +78,11 @@ typedef nx_struct msg_digest_t {
 typedef nx_struct beacon_update_t {
     nx_uint8_t permissions[MAX_NETWORK_SIZE];
 } beacon_update_t;
+
+typedef nx_struct dataReading {
+    nx_uint8_t who;
+    nx_uint16_t temperature;
+} dataReading_t;
 
 typedef nx_struct msg_analytics_t {
     // metadata (metadatum?)
